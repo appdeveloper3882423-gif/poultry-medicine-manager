@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+  >
+
+  <meta name="theme-color" content="#6c63ff">
+
+  <title>Poultry Medicine Manager</title>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <!-- ======================================================
+       LOADER
+  ======================================================= -->
+
+  <div id="loader" class="loader-screen">
+    <div class="loader-box">
+      <div class="spinner"></div>
+      <h2>Poultry Medicine Manager</h2>
+      <p>Loading...</p>
+    </div>
+  </div>
+
+
+  <!-- ======================================================
+       AUTH SCREEN
+  ======================================================= -->
+
+  <section id="authScreen" class="screen hidden">
+
+    <div class="auth-card">
+
+      <div class="brand-icon">
+        💊
+      </div>
+
+      <h1>Poultry Medicine Manager</h1>
+
+      <p class="subtitle">
+        Manage medicines, stock, sales and profit
+      </p>
+
+
+      <!-- LOGIN -->
+
+      <div id="loginForm">
+
+        <h2>Login</h2>
+
+        <div class="input-group">
+          <label>Email</label>
+          <input
+            id="loginEmail"
+            type="email"
+            placeholder="Enter email"
+            autocomplete="email"
+          >
+        </div>
+
+        <div class="input-group">
+          <label>Password</label>
+          <input
+            id="loginPassword"
+            type="password"
+            placeholder="Enter password"
+            autocomplete="current-password"
+          >
+        </div>
+
+        <button id="loginBtn" class="primary-btn">
+          Login
+        </button>
+
+        <button id="showRegisterBtn" class="text-btn">
+          Create New Account
+        </button>
+
+        <button id="forgotPasswordBtn" class="text-btn">
+          Forgot Password?
+        </button>
+
+      </div>
+
+
+      <!-- REGISTER -->
+
+      <div id="registerForm" class="hidden">
+
+        <h2>Create Account</h2>
+
+        <div class="input-group">
+          <label>Your Name</label>
+          <input
+            id="registerName"
+            type="text"
+            placeholder="Enter your name"
+          >
+        </div>
+
+        <div class="input-group">
+          <label>Email</label>
+          <input
+            id="registerEmail"
+            type="email"
+            placeholder="Enter email"
+            autocomplete="email"
+          >
+        </div>
+
+        <div class="input-group">
+          <label>Password</label>
+          <input
+            id="registerPassword"
+            type="password"
+            placeholder="Minimum 6 characters"
+            autocomplete="new-password"
+          >
+        </div>
+
+        <button id="registerBtn" class="primary-btn">
+          Create Account
+        </button>
+
+        <button id="showLoginBtn" class="text-btn">
+          Already have an account? Login
+        </button>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ======================================================
+       MAIN APP
+  ======================================================= -->
+
+  <div id="appScreen" class="app hidden">
+
+    <!-- SIDEBAR -->
+
+    <aside id="sidebar" class="sidebar">
+
+      <div class="sidebar-header">
+
+        <div class="brand-small">
+          💊
+        </div>
+
+        <div>
+          <strong>Poultry Medicine</strong>
+          <span>Manager</span>
+        </div>
+
+      </div>
+
+
+      <nav>
+
+        <button
+          class="nav-btn active"
+          data-page="dashboard"
+        >
+          <span>📊</span>
+          Dashboard
+        </button>
+
+        <button
+          class="nav-btn"
+          data-page="medicines"
+        >
+          <span>💊</span>
+          Medicines
+        </button>
+
+        <button
+          class="nav-btn"
+          data-page="sales"
+        >
+          <span>🛒</span>
+          Sales
+        </button>
+
+        <button
+          class="nav-btn"
+          data-page="reports"
+        >
+          <span>📈</span>
+          Reports
+        </button>
+
+        <button
+          class="nav-btn"
+          data-page="history"
+        >
+          <span>📜</span>
+          History
+        </button>
+
+        <button
+          class="nav-btn"
+          data-page="profile"
+        >
+          <span>👤</span>
+          Profile
+        </button>
+
+      </nav>
+
+
+      <div class="sidebar-bottom">
+
+        <div class="version">
+          Version 1.0.0
+        </div>
+
+        <button id="logoutBtn" class="logout-btn">
+          🚪 Logout
+        </button>
+
+      </div>
+
+    </aside>
+
+
+    <!-- MAIN -->
+
+    <main class="main-content">
+
+      <header class="topbar">
+
+        <button id="menuBtn" class="menu-btn">
+          ☰
+        </button>
+
+        <div>
+          <h2 id="pageTitle">Dashboard</h2>
+          <p id="welcomeText">Welcome</p>
+        </div>
+
+        <div class="top-user">
+          <div id="userAvatar">U</div>
+        </div>
+
+      </header>
+
+
+      <!-- ==================================================
+           DASHBOARD
+      =================================================== -->
+
+      <section
+        id="dashboardPage"
+        class="page active-page"
+      >
+
+        <div class="page-heading">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Overview of your medicine business</p>
+          </div>
+        </div>
+
+
+        <div class="stats-grid">
+
+          <div class="stat-card">
+            <div class="stat-icon purple">💊</div>
+            <div>
+              <span>Total Medicines</span>
+              <strong id="statMedicines">0</strong>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon blue">📦</div>
+            <div>
+              <span>Total Stock</span>
+              <strong id="statStock">0</strong>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon green">💰</div>
+            <div>
+              <span>Today's Sales</span>
+              <strong id="statTodaySales">Rs. 0</strong>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon orange">📈</div>
+            <div>
+              <span>Today's Profit</span>
+              <strong id="statTodayProfit">Rs. 0</strong>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon red">⚠️</div>
+            <div>
+              <span>Low Stock</span>
+              <strong id="statLowStock">0</strong>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon yellow">⏰</div>
+            <div>
+              <span>Expiring Soon</span>
+              <strong id="statExpiring">0</strong>
+            </div>
+          </div>
+
+        </div>
+
+
+        <div class="dashboard-grid">
+
+          <div class="panel">
+
+            <div class="panel-header">
+              <div>
+                <h3>Sales Overview</h3>
+                <p>Current performance</p>
+              </div>
+            </div>
+
+            <div class="period-grid">
+
+              <div class="period-box">
+                <span>Today</span>
+                <strong id="todayProfit">Rs. 0</strong>
+                <small id="todaySalesCount">0 sales</small>
+              </div>
+
+              <div class="period-box">
+                <span>This Week</span>
+                <strong id="weekProfit">Rs. 0</strong>
+                <small id="weekSalesCount">0 sales</small>
+              </div>
+
+              <div class="period-box">
+                <span>This Month</span>
+                <strong id="monthProfit">Rs. 0</strong>
+                <small id="monthSalesCount">0 sales</small>
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div class="panel">
+
+            <div class="panel-header">
+              <div>
+                <h3>Quick Actions</h3>
+                <p>Manage your business</p>
+              </div>
+            </div>
+
+            <div class="quick-actions">
+
+              <button
+                class="quick-btn"
+                data-go="medicines"
+              >
+                <span>➕</span>
+                Add Medicine
+              </button>
+
+              <button
+                class="quick-btn"
+                data-go="sales"
+              >
+                <span>🛒</span>
+                New Sale
+              </button>
+
+              <button
+                class="quick-btn"
+                data-go="reports"
+              >
+                <span>📊</span>
+                View Reports
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <div>
+              <h3>Recent Sales</h3>
+              <p>Latest transactions</p>
+            </div>
+
+            <button
+              class="small-btn"
+              data-go="sales"
+            >
+              View All
+            </button>
+          </div>
+
+          <div id="recentSales" class="table-wrap">
+            <div class="empty-state">
+              No sales recorded yet.
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ==================================================
+           MEDICINES
+      =================================================== -->
+
+      <section
+        id="medicinesPage"
+        class="page"
+      >
+
+        <div class="page-heading">
+
+          <div>
+            <h1>Medicines</h1>
+            <p>Manage your medicine stock</p>
+          </div>
+
+          <button
+            id="addMedicineBtn"
+            class="primary-btn"
+          >
+            + Add Medicine
+          </button>
+
+        </div>
+
+
+        <div class="filter-row">
+
+          <input
+            id="medicineSearch"
+            class="search-input"
+            type="search"
+            placeholder="Search medicine..."
+          >
+
+          <select id="medicineFilter">
+            <option value="all">All Medicines</option>
+            <option value="available">Available</option>
+            <option value="low">Low Stock</option>
+            <option value="out">Out of Stock</option>
+            <option value="expiring">Expiring Soon</option>
+            <option value="expired">Expired</option>
+          </select>
+
+        </div>
+
+
+        <div
+          id="medicineList"
+          class="medicine-grid"
+        ></div>
+
+      </section>
+
+
+      <!-- ==================================================
+           SALES
+      =================================================== -->
+
+      <section
+        id="salesPage"
+        class="page"
+      >
+
+        <div class="page-heading">
+
+          <div>
+            <h1>Sales</h1>
+            <p>Record medicine sales and calculate profit</p>
+          </div>
+
+          <button
+            id="newSaleBtn"
+            class="primary-btn"
+          >
+            + New Sale
+          </button>
+
+        </div>
+
+
+        <div class="stats-grid compact">
+
+          <div class="stat-card">
+            <div class="stat-icon green">💰</div>
+            <div>
+              <span>Total Sales</span>
+              <strong id="salesPageTotal">Rs. 0</strong>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon purple">📈</div>
+            <div>
+              <span>Total Profit</span>
+              <strong id="salesPageProfit">Rs. 0</strong>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon blue">🛒</div>
+            <div>
+              <span>Items Sold</span>
+              <strong id="salesPageItems">0</strong>
+            </div>
+          </div>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="panel-header">
+
+            <div>
+              <h3>Sales History</h3>
+              <p>All medicine sales</p>
+            </div>
+
+          </div>
+
+          <div
+            id="salesTable"
+            class="table-wrap"
+          ></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ==================================================
+           REPORTS
+      =================================================== -->
+
+      <section
+        id="reportsPage"
+        class="page"
+      >
+
+        <div class="page-heading">
+
+          <div>
+            <h1>Profit Reports</h1>
+            <p>Daily, weekly and monthly performance</p>
+          </div>
+
+        </div>
+
+
+        <div class="report-cards">
+
+          <div class="report-card">
+
+            <span>Today</span>
+
+            <h2 id="reportTodaySales">
+              Rs. 0
+            </h2>
+
+            <p>
+              Sales
+            </p>
+
+            <strong id="reportTodayProfit">
+              Profit: Rs. 0
+            </strong>
+
+          </div>
+
+
+          <div class="report-card">
+
+            <span>This Week</span>
+
+            <h2 id="reportWeekSales">
+              Rs. 0
+            </h2>
+
+            <p>
+              Sales
+            </p>
+
+            <strong id="reportWeekProfit">
+              Profit: Rs. 0
+            </strong>
+
+          </div>
+
+
+          <div class="report-card">
+
+            <span>This Month</span>
+
+            <h2 id="reportMonthSales">
+              Rs. 0
+            </h2>
+
+            <p>
+              Sales
+            </p>
+
+            <strong id="reportMonthProfit">
+              Profit: Rs. 0
+            </strong>
+
+          </div>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="panel-header">
+
+            <div>
+              <h3>Profit Calculation</h3>
+              <p>Based on purchase and selling prices</p>
+            </div>
+
+          </div>
+
+          <div class="profit-info">
+
+            <div>
+              <span>Total Revenue</span>
+              <strong id="reportRevenue">Rs. 0</strong>
+            </div>
+
+            <div>
+              <span>Total Cost</span>
+              <strong id="reportCost">Rs. 0</strong>
+            </div>
+
+            <div>
+              <span>Total Profit</span>
+              <strong id="reportProfit">Rs. 0</strong>
+            </div>
+
+            <div>
+              <span>Total Items Sold</span>
+              <strong id="reportItems">0</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ==================================================
+           HISTORY
+      =================================================== -->
+
+      <section
+        id="historyPage"
+        class="page"
+      >
+
+        <div class="page-heading">
+
+          <div>
+            <h1>History</h1>
+            <p>Medicine and sales activity</p>
+          </div>
+
+        </div>
+
+
+        <div
+          id="historyList"
+          class="history-list"
+        ></div>
+
+      </section>
+
+
+      <!-- ==================================================
+           PROFILE
+      =================================================== -->
+
+      <section
+        id="profilePage"
+        class="page"
+      >
+
+        <div class="page-heading">
+
+          <div>
+            <h1>Profile</h1>
+            <p>Your account information</p>
+          </div>
+
+        </div>
+
+
+        <div class="profile-card">
+
+          <div id="profileAvatar" class="profile-avatar">
+            U
+          </div>
+
+          <div class="profile-details">
+
+            <h2 id="profileName">
+              User
+            </h2>
+
+            <p id="profileEmail">
+              email@example.com
+            </p>
+
+            <span class="role-badge">
+              User
+            </span>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+
+  <!-- ======================================================
+       MEDICINE MODAL
+  ======================================================= -->
+
+  <div
+    id="medicineModal"
+    class="modal hidden"
+  >
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <h2 id="medicineModalTitle">
+            Add Medicine
+          </h2>
+
+          <p>
+            Enter medicine details
+          </p>
+        </div>
+
+        <button
+          class="close-modal"
+          data-close="medicineModal"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <form id="medicineForm">
+
+        <input
+          id="medicineId"
+          type="hidden"
+        >
+
+        <div class="form-grid">
+
+          <div class="input-group">
+            <label>Medicine Name *</label>
+            <input
+              id="medicineName"
+              required
+              placeholder="e.g. Poultry Vitamin"
+            >
+          </div>
+
+          <div class="input-group">
+            <label>Company / Brand</label>
+            <input
+              id="medicineCompany"
+              placeholder="Company name"
+            >
+          </div>
+
+          <div class="input-group">
+
+            <label>Category *</label>
+
+            <select id="medicineCategory" required>
+
+              <option value="">
+                Select category
+              </option>
+
+              <option>Antibiotic</option>
+              <option>Vitamin</option>
+              <option>Mineral</option>
+              <option>Vaccine</option>
+              <option>Antiparasitic</option>
+              <option>Electrolyte</option>
+              <option>Other</option>
+
+            </select>
+
+          </div>
+
+
+          <div class="input-group">
+
+            <label>Unit *</label>
+
+            <select id="medicineUnit" required>
+
+              <option value="">
+                Select unit
+              </option>
+
+              <option>Bottle</option>
+              <option>Box</option>
+              <option>Vial</option>
+              <option>Pack</option>
+              <option>Sachet</option>
+              <option>Tablet</option>
+              <option>Kg</option>
+              <option>Liter</option>
+              <option>Piece</option>
+
+            </select>
+
+          </div>
+
+
+          <div class="input-group">
+
+            <label>Purchase Price *</label>
+
+            <input
+              id="purchasePrice"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              placeholder="0"
+            >
+
+          </div>
+
+
+          <div class="input-group">
+
+            <label>Selling Price *</label>
+
+            <input
+              id="sellingPrice"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              placeholder="0"
+            >
+
+          </div>
+
+
+          <div class="input-group">
+
+            <label>Stock Quantity *</label>
+
+            <input
+              id="stockQuantity"
+              type="number"
+              min="0"
+              required
+              placeholder="0"
+            >
+
+          </div>
+
+
+          <div class="input-group">
+
+            <label>Minimum Stock Level</label>
+
+            <input
+              id="minimumStock"
+              type="number"
+              min="0"
+              value="5"
+              placeholder="5"
+            >
+
+          </div>
+
+
+          <div class="input-group">
+
+            <label>Purchase Date</label>
+
+            <input
+              id="purchaseDate"
+              type="date"
+            >
+
+          </div>
+
+
+          <div class="input-group">
+
+            <label>Expiry Date *</label>
+
+            <input
+              id="expiryDate"
+              type="date"
+              required
+            >
+
+          </div>
+
+        </div>
+
+
+        <div class="input-group">
+
+          <label>Notes</label>
+
+          <textarea
+            id="medicineNotes"
+            rows="3"
+            placeholder="Optional notes..."
+          ></textarea>
+
+        </div>
+
+
+        <div class="modal-actions">
+
+          <button
+            type="button"
+            class="secondary-btn"
+            data-close="medicineModal"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="primary-btn"
+          >
+            Save Medicine
+          </button>
+
+        </div>
+
+      </form>
+
+    </div>
+
+  </div>
+
+
+  <!-- ======================================================
+       SALE MODAL
+  ======================================================= -->
+
+  <div
+    id="saleModal"
+    class="modal hidden"
+  >
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <h2>New Sale</h2>
+          <p>Record a medicine sale</p>
+        </div>
+
+        <button
+          class="close-modal"
+          data-close="saleModal"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <form id="saleForm">
+
+        <div class="input-group">
+
+          <label>Medicine *</label>
+
+          <select
+            id="saleMedicine"
+            required
+          >
+
+            <option value="">
+              Select medicine
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <div
+          id="saleMedicineInfo"
+          class="sale-info hidden"
+        >
+
+          <div>
+            <span>Available Stock</span>
+            <strong id="saleAvailableStock">0</strong>
+          </div>
+
+          <div>
+            <span>Purchase Price</span>
+            <strong id="salePurchasePrice">Rs. 0</strong>
+          </div>
+
+          <div>
+            <span>Selling Price</span>
+            <strong id="saleSellingPrice">Rs. 0</strong>
+          </div>
+
+        </div>
+
+
+        <div class="input-group">
+
+          <label>Quantity *</label>
+
+          <input
+            id="saleQuantity"
+            type="number"
+            min="1"
+            required
+            placeholder="Quantity sold"
+          >
+
+        </div>
+
+
+        <div class="input-group">
+
+          <label>Customer Name</label>
+
+          <input
+            id="customerName"
+            placeholder="Optional"
+          >
+
+        </div>
+
+
+        <div class="sale-total">
+
+          <div>
+            <span>Total Sale</span>
+            <strong id="saleTotal">
+              Rs. 0
+            </strong>
+          </div>
+
+          <div>
+            <span>Estimated Profit</span>
+            <strong id="saleProfit">
+              Rs. 0
+            </strong>
+          </div>
+
+        </div>
+
+
+        <div class="modal-actions">
+
+          <button
+            type="button"
+            class="secondary-btn"
+            data-close="saleModal"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="primary-btn"
+          >
+            Complete Sale
+          </button>
+
+        </div>
+
+      </form>
+
+    </div>
+
+  </div>
+
+
+  <!-- ======================================================
+       TOAST
+  ======================================================= -->
+
+  <div id="toast" class="toast">
+    <span id="toastMessage"></span>
+  </div>
+
+
+  <script type="module" src="app.js"></script>
+
+</body>
+  </html>
