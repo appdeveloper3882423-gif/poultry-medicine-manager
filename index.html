@@ -2,136 +2,866 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
-  >
-
-  <meta name="theme-color" content="#6c63ff">
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2563eb">
   <title>Poultry Medicine Manager</title>
 
-  <link rel="stylesheet" href="style.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f5f7fb;
+      color: #172033;
+      min-height: 100vh;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* ================= AUTH ================= */
+
+    #authScreen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background:
+        radial-gradient(circle at top left, #dbeafe, transparent 35%),
+        radial-gradient(circle at bottom right, #e0e7ff, transparent 35%),
+        #f8fafc;
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 440px;
+      background: white;
+      border-radius: 24px;
+      padding: 34px;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, .12);
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .brand-icon {
+      width: 70px;
+      height: 70px;
+      margin: auto;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      color: white;
+      font-size: 34px;
+      box-shadow: 0 12px 25px rgba(37, 99, 235, .25);
+    }
+
+    .brand h1 {
+      margin-top: 15px;
+      font-size: 25px;
+    }
+
+    .brand p {
+      color: #64748b;
+      margin-top: 6px;
+      font-size: 14px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .form-control {
+      width: 100%;
+      border: 1px solid #dbe2ea;
+      border-radius: 12px;
+      padding: 13px 14px;
+      outline: none;
+      background: #fff;
+      transition: .2s;
+    }
+
+    .form-control:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
+    }
+
+    .primary-btn {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px;
+      color: white;
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      font-weight: 700;
+      transition: .2s;
+    }
+
+    .primary-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .auth-switch {
+      text-align: center;
+      margin-top: 20px;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    .auth-switch button {
+      border: 0;
+      background: transparent;
+      color: #2563eb;
+      font-weight: 700;
+    }
+
+    .forgot-btn {
+      float: right;
+      border: 0;
+      background: transparent;
+      color: #2563eb;
+      font-size: 12px;
+    }
+
+    /* ================= APP ================= */
+
+    #appScreen {
+      min-height: 100vh;
+    }
+
+    .topbar {
+      height: 70px;
+      background: white;
+      border-bottom: 1px solid #e5eaf0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+    }
+
+    .menu-btn {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 12px;
+      background: #f1f5f9;
+      font-size: 21px;
+    }
+
+    .top-title {
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 12px;
+      background: #f1f5f9;
+    }
+
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 70px);
+    }
+
+    .sidebar {
+      width: 245px;
+      background: #111827;
+      color: white;
+      padding: 20px 14px;
+      flex-shrink: 0;
+      transition: .25s;
+    }
+
+    .sidebar-brand {
+      padding: 10px 12px 22px;
+      font-weight: 800;
+      font-size: 17px;
+    }
+
+    .nav-item {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: #cbd5e1;
+      padding: 13px 14px;
+      border-radius: 11px;
+      text-align: left;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-item:hover,
+    .nav-item.active {
+      background: #1e40af;
+      color: white;
+    }
+
+    .main {
+      flex: 1;
+      padding: 25px;
+      min-width: 0;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+
+    .page-header h2 {
+      font-size: 24px;
+    }
+
+    .page-header p {
+      color: #64748b;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+
+    .action-btn {
+      border: 0;
+      padding: 11px 16px;
+      border-radius: 10px;
+      color: white;
+      background: #2563eb;
+      font-weight: 700;
+    }
+
+    /* ================= DASHBOARD ================= */
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 17px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: white;
+      border: 1px solid #e8edf3;
+      border-radius: 17px;
+      padding: 20px;
+      box-shadow: 0 5px 18px rgba(15, 23, 42, .04);
+    }
+
+    .stat-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stat-icon {
+      width: 43px;
+      height: 43px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #eff6ff;
+      font-size: 20px;
+    }
+
+    .stat-label {
+      color: #64748b;
+      font-size: 13px;
+      margin-top: 17px;
+    }
+
+    .stat-value {
+      font-size: 27px;
+      font-weight: 800;
+      margin-top: 4px;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      background: white;
+      border: 1px solid #e8edf3;
+      border-radius: 17px;
+      padding: 20px;
+      box-shadow: 0 5px 18px rgba(15, 23, 42, .04);
+    }
+
+    .panel-title {
+      font-size: 17px;
+      font-weight: 800;
+      margin-bottom: 17px;
+    }
+
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .quick-btn {
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      border-radius: 13px;
+      padding: 18px 12px;
+      text-align: left;
+      font-weight: 700;
+    }
+
+    .quick-btn span {
+      display: block;
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+
+    .alert-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #eef2f7;
+      font-size: 14px;
+    }
+
+    .alert-row:last-child {
+      border-bottom: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 9px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .badge.green {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge.orange {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+
+    .badge.red {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge.blue {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    /* ================= TABLE ================= */
+
+    .table-panel {
+      background: white;
+      border: 1px solid #e8edf3;
+      border-radius: 17px;
+      overflow: hidden;
+    }
+
+    .table-toolbar {
+      padding: 17px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #edf1f5;
+    }
+
+    .search-input {
+      flex: 1;
+      min-width: 180px;
+      border: 1px solid #dbe2ea;
+      padding: 11px 13px;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    .filter-select {
+      border: 1px solid #dbe2ea;
+      padding: 11px 13px;
+      border-radius: 10px;
+      background: white;
+      outline: none;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 750px;
+    }
+
+    th,
+    td {
+      padding: 14px 15px;
+      text-align: left;
+      border-bottom: 1px solid #edf1f5;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    th {
+      color: #64748b;
+      background: #f8fafc;
+      font-size: 12px;
+    }
+
+    td {
+      color: #334155;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 45px 20px;
+      color: #64748b;
+    }
+
+    /* ================= PROFIT ================= */
+
+    .profit-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 17px;
+      margin-bottom: 20px;
+    }
+
+    .profit-card {
+      padding: 22px;
+      border-radius: 17px;
+      background: white;
+      border: 1px solid #e8edf3;
+    }
+
+    .profit-card h3 {
+      font-size: 14px;
+      color: #64748b;
+    }
+
+    .profit-card strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 27px;
+    }
+
+    /* ================= MODAL ================= */
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, .55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 100;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 550px;
+      max-height: 92vh;
+      overflow-y: auto;
+      background: white;
+      border-radius: 20px;
+      padding: 24px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .close-btn {
+      border: 0;
+      background: #f1f5f9;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      font-size: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .form-full {
+      grid-column: 1 / -1;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .secondary-btn {
+      flex: 1;
+      border: 1px solid #dbe2ea;
+      background: white;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: 700;
+    }
+
+    .modal-actions .action-btn {
+      flex: 1;
+    }
+
+    /* ================= PROFILE ================= */
+
+    .profile-card {
+      max-width: 650px;
+      background: white;
+      border-radius: 18px;
+      padding: 25px;
+      border: 1px solid #e8edf3;
+    }
+
+    .profile-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 15px;
+    }
+
+    .profile-info {
+      margin-top: 20px;
+    }
+
+    .profile-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 14px 0;
+      border-bottom: 1px solid #edf1f5;
+      font-size: 14px;
+    }
+
+    .profile-line span:first-child {
+      color: #64748b;
+    }
+
+    /* ================= TOAST ================= */
+
+    #toastContainer {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 300;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      background: #111827;
+      color: white;
+      padding: 13px 16px;
+      border-radius: 11px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+      font-size: 13px;
+      max-width: 320px;
+      animation: toastIn .2s ease;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ================= MOBILE ================= */
+
+    @media (max-width: 950px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .profit-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .topbar {
+        padding: 0 14px;
+      }
+
+      .top-title {
+        font-size: 17px;
+      }
+
+      .sidebar {
+        position: fixed;
+        top: 70px;
+        bottom: 0;
+        left: -260px;
+        z-index: 50;
+        box-shadow: 10px 0 30px rgba(0, 0, 0, .15);
+      }
+
+      .sidebar.open {
+        left: 0;
+      }
+
+      .main {
+        padding: 17px;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .stat-card {
+        padding: 15px;
+      }
+
+      .stat-value {
+        font-size: 22px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .form-full {
+        grid-column: auto;
+      }
+    }
+
+    @media (max-width: 430px) {
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .auth-card {
+        padding: 25px 19px;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-  <!-- ======================================================
-       LOADER
-  ======================================================= -->
-
-  <div id="loader" class="loader-screen">
-    <div class="loader-box">
-      <div class="spinner"></div>
-      <h2>Poultry Medicine Manager</h2>
-      <p>Loading...</p>
-    </div>
-  </div>
-
-
-  <!-- ======================================================
+  <!-- ========================================================
        AUTH SCREEN
-  ======================================================= -->
+  ========================================================= -->
 
-  <section id="authScreen" class="screen hidden">
+  <section id="authScreen">
 
     <div class="auth-card">
 
-      <div class="brand-icon">
-        💊
+      <div class="brand">
+        <div class="brand-icon">🐔</div>
+        <h1>Poultry Medicine Manager</h1>
+        <p>Manage medicines, stock, sales and profit</p>
       </div>
-
-      <h1>Poultry Medicine Manager</h1>
-
-      <p class="subtitle">
-        Manage medicines, stock, sales and profit
-      </p>
-
 
       <!-- LOGIN -->
 
-      <div id="loginForm">
+      <form id="loginForm">
 
-        <h2>Login</h2>
-
-        <div class="input-group">
-          <label>Email</label>
+        <div class="form-group">
+          <label>Email Address</label>
           <input
             id="loginEmail"
+            class="form-control"
             type="email"
-            placeholder="Enter email"
-            autocomplete="email"
+            placeholder="Enter your email"
+            required
           >
         </div>
 
-        <div class="input-group">
-          <label>Password</label>
+        <div class="form-group">
+          <label>
+            Password
+            <button
+              type="button"
+              class="forgot-btn"
+              id="forgotPasswordBtn"
+            >
+              Forgot password?
+            </button>
+          </label>
+
           <input
             id="loginPassword"
+            class="form-control"
             type="password"
-            placeholder="Enter password"
-            autocomplete="current-password"
+            placeholder="Enter your password"
+            required
           >
         </div>
 
-        <button id="loginBtn" class="primary-btn">
+        <button class="primary-btn" type="submit">
           Login
         </button>
 
-        <button id="showRegisterBtn" class="text-btn">
-          Create New Account
-        </button>
-
-        <button id="forgotPasswordBtn" class="text-btn">
-          Forgot Password?
-        </button>
-
-      </div>
-
+      </form>
 
       <!-- REGISTER -->
 
-      <div id="registerForm" class="hidden">
+      <form id="registerForm" class="hidden">
 
-        <h2>Create Account</h2>
-
-        <div class="input-group">
-          <label>Your Name</label>
+        <div class="form-group">
+          <label>Full Name</label>
           <input
             id="registerName"
+            class="form-control"
             type="text"
             placeholder="Enter your name"
+            required
           >
         </div>
 
-        <div class="input-group">
-          <label>Email</label>
+        <div class="form-group">
+          <label>Email Address</label>
           <input
             id="registerEmail"
+            class="form-control"
             type="email"
-            placeholder="Enter email"
-            autocomplete="email"
+            placeholder="Enter your email"
+            required
           >
         </div>
 
-        <div class="input-group">
+        <div class="form-group">
           <label>Password</label>
           <input
             id="registerPassword"
+            class="form-control"
             type="password"
             placeholder="Minimum 6 characters"
-            autocomplete="new-password"
+            minlength="6"
+            required
           >
         </div>
 
-        <button id="registerBtn" class="primary-btn">
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input
+            id="registerConfirmPassword"
+            class="form-control"
+            type="password"
+            placeholder="Confirm password"
+            minlength="6"
+            required
+          >
+        </div>
+
+        <button class="primary-btn" type="submit">
           Create Account
         </button>
 
-        <button id="showLoginBtn" class="text-btn">
-          Already have an account? Login
-        </button>
+      </form>
+
+      <div class="auth-switch">
+
+        <span id="loginSwitchText">
+          Don't have an account?
+          <button type="button" id="showRegisterBtn">
+            Create Account
+          </button>
+        </span>
+
+        <span id="registerSwitchText" class="hidden">
+          Already have an account?
+          <button type="button" id="showLoginBtn">
+            Login
+          </button>
+        </span>
 
       </div>
 
@@ -140,649 +870,758 @@
   </section>
 
 
-  <!-- ======================================================
-       MAIN APP
-  ======================================================= -->
+  <!-- ========================================================
+       APP SCREEN
+  ========================================================= -->
 
-  <div id="appScreen" class="app hidden">
+  <section id="appScreen" class="hidden">
 
-    <!-- SIDEBAR -->
+    <!-- TOP BAR -->
 
-    <aside id="sidebar" class="sidebar">
+    <header class="topbar">
 
-      <div class="sidebar-header">
-
-        <div class="brand-small">
-          💊
-        </div>
-
-        <div>
-          <strong>Poultry Medicine</strong>
-          <span>Manager</span>
-        </div>
-
-      </div>
-
-
-      <nav>
+      <div class="topbar-left">
 
         <button
-          class="nav-btn active"
-          data-page="dashboard"
+          class="menu-btn"
+          id="menuBtn"
+          type="button"
         >
-          <span>📊</span>
-          Dashboard
-        </button>
-
-        <button
-          class="nav-btn"
-          data-page="medicines"
-        >
-          <span>💊</span>
-          Medicines
-        </button>
-
-        <button
-          class="nav-btn"
-          data-page="sales"
-        >
-          <span>🛒</span>
-          Sales
-        </button>
-
-        <button
-          class="nav-btn"
-          data-page="reports"
-        >
-          <span>📈</span>
-          Reports
-        </button>
-
-        <button
-          class="nav-btn"
-          data-page="history"
-        >
-          <span>📜</span>
-          History
-        </button>
-
-        <button
-          class="nav-btn"
-          data-page="profile"
-        >
-          <span>👤</span>
-          Profile
-        </button>
-
-      </nav>
-
-
-      <div class="sidebar-bottom">
-
-        <div class="version">
-          Version 1.0.0
-        </div>
-
-        <button id="logoutBtn" class="logout-btn">
-          🚪 Logout
-        </button>
-
-      </div>
-
-    </aside>
-
-
-    <!-- MAIN -->
-
-    <main class="main-content">
-
-      <header class="topbar">
-
-        <button id="menuBtn" class="menu-btn">
           ☰
         </button>
 
-        <div>
-          <h2 id="pageTitle">Dashboard</h2>
-          <p id="welcomeText">Welcome</p>
+        <div class="top-title">
+          Poultry Medicine Manager
         </div>
 
-        <div class="top-user">
-          <div id="userAvatar">U</div>
+      </div>
+
+      <div class="top-actions">
+
+        <button
+          class="icon-btn"
+          id="refreshBtn"
+          title="Refresh"
+          type="button"
+        >
+          ↻
+        </button>
+
+        <button
+          class="icon-btn"
+          id="logoutBtn"
+          title="Logout"
+          type="button"
+        >
+          ⇥
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <div class="layout">
+
+      <!-- SIDEBAR -->
+
+      <aside class="sidebar" id="sidebar">
+
+        <div class="sidebar-brand">
+          🐔 Medicine Manager
         </div>
 
-      </header>
+        <button
+          class="nav-item active"
+          data-page="dashboardPage"
+          type="button"
+        >
+          📊 Dashboard
+        </button>
+
+        <button
+          class="nav-item"
+          data-page="medicinesPage"
+          type="button"
+        >
+          💊 Medicines
+        </button>
+
+        <button
+          class="nav-item"
+          data-page="salesPage"
+          type="button"
+        >
+          🧾 Sales
+        </button>
+
+        <button
+          class="nav-item"
+          data-page="profitPage"
+          type="button"
+        >
+          💰 Profit
+        </button>
+
+        <button
+          class="nav-item"
+          data-page="historyPage"
+          type="button"
+        >
+          🕘 History
+        </button>
+
+        <button
+          class="nav-item"
+          data-page="alertsPage"
+          type="button"
+        >
+          🔔 Alerts
+        </button>
+
+        <button
+          class="nav-item"
+          data-page="profilePage"
+          type="button"
+        >
+          👤 Profile
+        </button>
+
+      </aside>
 
 
-      <!-- ==================================================
-           DASHBOARD
-      =================================================== -->
+      <!-- MAIN -->
 
-      <section
-        id="dashboardPage"
-        class="page active-page"
-      >
-
-        <div class="page-heading">
-          <div>
-            <h1>Dashboard</h1>
-            <p>Overview of your medicine business</p>
-          </div>
-        </div>
+      <main class="main">
 
 
-        <div class="stats-grid">
+        <!-- ==================================================
+             DASHBOARD
+        ================================================== -->
 
-          <div class="stat-card">
-            <div class="stat-icon purple">💊</div>
+        <section
+          id="dashboardPage"
+          class="page active"
+        >
+
+          <div class="page-header">
+
             <div>
-              <span>Total Medicines</span>
-              <strong id="statMedicines">0</strong>
+              <h2>Dashboard</h2>
+              <p>Overview of your medicine business</p>
             </div>
+
           </div>
 
-          <div class="stat-card">
-            <div class="stat-icon blue">📦</div>
-            <div>
-              <span>Total Stock</span>
-              <strong id="statStock">0</strong>
-            </div>
-          </div>
 
-          <div class="stat-card">
-            <div class="stat-icon green">💰</div>
-            <div>
-              <span>Today's Sales</span>
-              <strong id="statTodaySales">Rs. 0</strong>
-            </div>
-          </div>
+          <div class="stats-grid">
 
-          <div class="stat-card">
-            <div class="stat-icon orange">📈</div>
-            <div>
-              <span>Today's Profit</span>
-              <strong id="statTodayProfit">Rs. 0</strong>
-            </div>
-          </div>
+            <div class="stat-card">
 
-          <div class="stat-card">
-            <div class="stat-icon red">⚠️</div>
-            <div>
-              <span>Low Stock</span>
-              <strong id="statLowStock">0</strong>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon yellow">⏰</div>
-            <div>
-              <span>Expiring Soon</span>
-              <strong id="statExpiring">0</strong>
-            </div>
-          </div>
-
-        </div>
-
-
-        <div class="dashboard-grid">
-
-          <div class="panel">
-
-            <div class="panel-header">
-              <div>
-                <h3>Sales Overview</h3>
-                <p>Current performance</p>
-              </div>
-            </div>
-
-            <div class="period-grid">
-
-              <div class="period-box">
-                <span>Today</span>
-                <strong id="todayProfit">Rs. 0</strong>
-                <small id="todaySalesCount">0 sales</small>
-              </div>
-
-              <div class="period-box">
-                <span>This Week</span>
-                <strong id="weekProfit">Rs. 0</strong>
-                <small id="weekSalesCount">0 sales</small>
+              <div class="stat-top">
+                <div class="stat-icon">💊</div>
               </div>
 
-              <div class="period-box">
-                <span>This Month</span>
-                <strong id="monthProfit">Rs. 0</strong>
-                <small id="monthSalesCount">0 sales</small>
+              <div class="stat-label">
+                Total Medicines
               </div>
 
-            </div>
-
-          </div>
-
-
-          <div class="panel">
-
-            <div class="panel-header">
-              <div>
-                <h3>Quick Actions</h3>
-                <p>Manage your business</p>
-              </div>
-            </div>
-
-            <div class="quick-actions">
-
-              <button
-                class="quick-btn"
-                data-go="medicines"
+              <div
+                class="stat-value"
+                id="totalMedicines"
               >
-                <span>➕</span>
-                Add Medicine
-              </button>
+                0
+              </div>
 
-              <button
-                class="quick-btn"
-                data-go="sales"
-              >
-                <span>🛒</span>
-                New Sale
-              </button>
+            </div>
 
-              <button
-                class="quick-btn"
-                data-go="reports"
+
+            <div class="stat-card">
+
+              <div class="stat-top">
+                <div class="stat-icon">📦</div>
+              </div>
+
+              <div class="stat-label">
+                Total Stock
+              </div>
+
+              <div
+                class="stat-value"
+                id="totalStock"
               >
-                <span>📊</span>
-                View Reports
-              </button>
+                0
+              </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+              <div class="stat-top">
+                <div class="stat-icon">⚠️</div>
+              </div>
+
+              <div class="stat-label">
+                Low Stock
+              </div>
+
+              <div
+                class="stat-value"
+                id="lowStock"
+              >
+                0
+              </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+              <div class="stat-top">
+                <div class="stat-icon">⏰</div>
+              </div>
+
+              <div class="stat-label">
+                Expiring Soon
+              </div>
+
+              <div
+                class="stat-value"
+                id="expiringSoon"
+              >
+                0
+              </div>
 
             </div>
 
           </div>
 
-        </div>
+
+          <div class="dashboard-grid">
+
+            <div class="panel">
+
+              <div class="panel-title">
+                Quick Actions
+              </div>
+
+              <div class="quick-grid">
+
+                <button
+                  class="quick-btn"
+                  id="quickAddMedicine"
+                  type="button"
+                >
+                  <span>💊</span>
+                  Add Medicine
+                </button>
+
+                <button
+                  class="quick-btn"
+                  id="quickSale"
+                  type="button"
+                >
+                  <span>🧾</span>
+                  Record Sale
+                </button>
+
+                <button
+                  class="quick-btn"
+                  data-open-page="profitPage"
+                  type="button"
+                >
+                  <span>💰</span>
+                  View Profit
+                </button>
+
+                <button
+                  class="quick-btn"
+                  data-open-page="alertsPage"
+                  type="button"
+                >
+                  <span>🔔</span>
+                  View Alerts
+                </button>
+
+              </div>
+
+            </div>
 
 
-        <div class="panel">
+            <div class="panel">
 
-          <div class="panel-header">
+              <div class="panel-title">
+                Stock Alerts
+              </div>
+
+              <div id="dashboardAlerts">
+
+                <div class="empty-state">
+                  No alerts available
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- ==================================================
+             MEDICINES
+        ================================================== -->
+
+        <section
+          id="medicinesPage"
+          class="page"
+        >
+
+          <div class="page-header">
+
             <div>
-              <h3>Recent Sales</h3>
-              <p>Latest transactions</p>
+              <h2>Medicines</h2>
+              <p>Manage your medicine inventory</p>
             </div>
 
             <button
-              class="small-btn"
-              data-go="sales"
+              class="action-btn"
+              id="addMedicineBtn"
+              type="button"
             >
-              View All
+              + Add Medicine
             </button>
+
           </div>
 
-          <div id="recentSales" class="table-wrap">
-            <div class="empty-state">
-              No sales recorded yet.
+
+          <div class="table-panel">
+
+            <div class="table-toolbar">
+
+              <input
+                id="medicineSearch"
+                class="search-input"
+                type="search"
+                placeholder="Search medicine..."
+              >
+
+              <select
+                id="medicineFilter"
+                class="filter-select"
+              >
+                <option value="all">All</option>
+                <option value="available">Available</option>
+                <option value="low">Low Stock</option>
+                <option value="out">Out of Stock</option>
+                <option value="expiring">Expiring Soon</option>
+                <option value="expired">Expired</option>
+              </select>
+
             </div>
-          </div>
-
-        </div>
-
-      </section>
 
 
-      <!-- ==================================================
-           MEDICINES
-      =================================================== -->
+            <div class="table-wrap">
 
-      <section
-        id="medicinesPage"
-        class="page"
-      >
+              <table>
 
-        <div class="page-heading">
+                <thead>
 
-          <div>
-            <h1>Medicines</h1>
-            <p>Manage your medicine stock</p>
-          </div>
+                  <tr>
+                    <th>Medicine</th>
+                    <th>Category</th>
+                    <th>Stock</th>
+                    <th>Unit</th>
+                    <th>Expiry</th>
+                    <th>Stock Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
 
-          <button
-            id="addMedicineBtn"
-            class="primary-btn"
-          >
-            + Add Medicine
-          </button>
+                </thead>
 
-        </div>
+                <tbody id="medicineTableBody">
 
+                  <tr>
+                    <td
+                      colspan="8"
+                      class="empty-state"
+                    >
+                      No medicines added yet
+                    </td>
+                  </tr>
 
-        <div class="filter-row">
+                </tbody>
 
-          <input
-            id="medicineSearch"
-            class="search-input"
-            type="search"
-            placeholder="Search medicine..."
-          >
+              </table>
 
-          <select id="medicineFilter">
-            <option value="all">All Medicines</option>
-            <option value="available">Available</option>
-            <option value="low">Low Stock</option>
-            <option value="out">Out of Stock</option>
-            <option value="expiring">Expiring Soon</option>
-            <option value="expired">Expired</option>
-          </select>
-
-        </div>
-
-
-        <div
-          id="medicineList"
-          class="medicine-grid"
-        ></div>
-
-      </section>
-
-
-      <!-- ==================================================
-           SALES
-      =================================================== -->
-
-      <section
-        id="salesPage"
-        class="page"
-      >
-
-        <div class="page-heading">
-
-          <div>
-            <h1>Sales</h1>
-            <p>Record medicine sales and calculate profit</p>
-          </div>
-
-          <button
-            id="newSaleBtn"
-            class="primary-btn"
-          >
-            + New Sale
-          </button>
-
-        </div>
-
-
-        <div class="stats-grid compact">
-
-          <div class="stat-card">
-            <div class="stat-icon green">💰</div>
-            <div>
-              <span>Total Sales</span>
-              <strong id="salesPageTotal">Rs. 0</strong>
             </div>
+
           </div>
 
-          <div class="stat-card">
-            <div class="stat-icon purple">📈</div>
-            <div>
-              <span>Total Profit</span>
-              <strong id="salesPageProfit">Rs. 0</strong>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon blue">🛒</div>
-            <div>
-              <span>Items Sold</span>
-              <strong id="salesPageItems">0</strong>
-            </div>
-          </div>
-
-        </div>
+        </section>
 
 
-        <div class="panel">
+        <!-- ==================================================
+             SALES
+        ================================================== -->
 
-          <div class="panel-header">
+        <section
+          id="salesPage"
+          class="page"
+        >
+
+          <div class="page-header">
 
             <div>
-              <h3>Sales History</h3>
-              <p>All medicine sales</p>
+              <h2>Sales</h2>
+              <p>Record and manage medicine sales</p>
+            </div>
+
+            <button
+              class="action-btn"
+              id="recordSaleBtn"
+              type="button"
+            >
+              + Record Sale
+            </button>
+
+          </div>
+
+
+          <div class="table-panel">
+
+            <div class="table-toolbar">
+
+              <input
+                id="salesSearch"
+                class="search-input"
+                type="search"
+                placeholder="Search sales..."
+              >
+
+            </div>
+
+
+            <div class="table-wrap">
+
+              <table>
+
+                <thead>
+
+                  <tr>
+                    <th>Date</th>
+                    <th>Medicine</th>
+                    <th>Quantity</th>
+                    <th>Sale Amount</th>
+                    <th>Cost</th>
+                    <th>Profit</th>
+                  </tr>
+
+                </thead>
+
+                <tbody id="salesTableBody">
+
+                  <tr>
+                    <td
+                      colspan="6"
+                      class="empty-state"
+                    >
+                      No sales recorded yet
+                    </td>
+                  </tr>
+
+                </tbody>
+
+              </table>
+
             </div>
 
           </div>
+
+        </section>
+
+
+        <!-- ==================================================
+             PROFIT
+        ================================================== -->
+
+        <section
+          id="profitPage"
+          class="page"
+        >
+
+          <div class="page-header">
+
+            <div>
+              <h2>Profit Report</h2>
+              <p>Track your sales and business profit</p>
+            </div>
+
+          </div>
+
+
+          <div class="profit-grid">
+
+            <div class="profit-card">
+
+              <h3>Today</h3>
+
+              <strong id="todayProfit">
+                Rs 0
+              </strong>
+
+            </div>
+
+
+            <div class="profit-card">
+
+              <h3>This Week</h3>
+
+              <strong id="weekProfit">
+                Rs 0
+              </strong>
+
+            </div>
+
+
+            <div class="profit-card">
+
+              <h3>This Month</h3>
+
+              <strong id="monthProfit">
+                Rs 0
+              </strong>
+
+            </div>
+
+          </div>
+
+
+          <div class="panel">
+
+            <div class="panel-title">
+              Sales Summary
+            </div>
+
+            <div id="profitSummary">
+
+              <div class="alert-row">
+                <span>Total Sales</span>
+                <strong id="totalSalesCount">0</strong>
+              </div>
+
+              <div class="alert-row">
+                <span>Total Quantity Sold</span>
+                <strong id="totalQuantitySold">0</strong>
+              </div>
+
+              <div class="alert-row">
+                <span>Total Revenue</span>
+                <strong id="totalRevenue">Rs 0</strong>
+              </div>
+
+              <div class="alert-row">
+                <span>Total Profit</span>
+                <strong id="totalProfit">Rs 0</strong>
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- ==================================================
+             HISTORY
+        ================================================== -->
+
+        <section
+          id="historyPage"
+          class="page"
+        >
+
+          <div class="page-header">
+
+            <div>
+              <h2>History</h2>
+              <p>Complete stock and sales activity</p>
+            </div>
+
+          </div>
+
+
+          <div class="table-panel">
+
+            <div class="table-wrap">
+
+              <table>
+
+                <thead>
+
+                  <tr>
+                    <th>Date</th>
+                    <th>Action</th>
+                    <th>Medicine</th>
+                    <th>Quantity</th>
+                    <th>Details</th>
+                  </tr>
+
+                </thead>
+
+                <tbody id="historyTableBody">
+
+                  <tr>
+                    <td
+                      colspan="5"
+                      class="empty-state"
+                    >
+                      No history available
+                    </td>
+                  </tr>
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- ==================================================
+             ALERTS
+        ================================================== -->
+
+        <section
+          id="alertsPage"
+          class="page"
+        >
+
+          <div class="page-header">
+
+            <div>
+              <h2>Alerts</h2>
+              <p>Low stock and expiry notifications</p>
+            </div>
+
+          </div>
+
 
           <div
-            id="salesTable"
-            class="table-wrap"
-          ></div>
+            class="panel"
+            id="alertsList"
+          >
 
-        </div>
-
-      </section>
-
-
-      <!-- ==================================================
-           REPORTS
-      =================================================== -->
-
-      <section
-        id="reportsPage"
-        class="page"
-      >
-
-        <div class="page-heading">
-
-          <div>
-            <h1>Profit Reports</h1>
-            <p>Daily, weekly and monthly performance</p>
-          </div>
-
-        </div>
-
-
-        <div class="report-cards">
-
-          <div class="report-card">
-
-            <span>Today</span>
-
-            <h2 id="reportTodaySales">
-              Rs. 0
-            </h2>
-
-            <p>
-              Sales
-            </p>
-
-            <strong id="reportTodayProfit">
-              Profit: Rs. 0
-            </strong>
-
-          </div>
-
-
-          <div class="report-card">
-
-            <span>This Week</span>
-
-            <h2 id="reportWeekSales">
-              Rs. 0
-            </h2>
-
-            <p>
-              Sales
-            </p>
-
-            <strong id="reportWeekProfit">
-              Profit: Rs. 0
-            </strong>
-
-          </div>
-
-
-          <div class="report-card">
-
-            <span>This Month</span>
-
-            <h2 id="reportMonthSales">
-              Rs. 0
-            </h2>
-
-            <p>
-              Sales
-            </p>
-
-            <strong id="reportMonthProfit">
-              Profit: Rs. 0
-            </strong>
-
-          </div>
-
-        </div>
-
-
-        <div class="panel">
-
-          <div class="panel-header">
-
-            <div>
-              <h3>Profit Calculation</h3>
-              <p>Based on purchase and selling prices</p>
+            <div class="empty-state">
+              No alerts available
             </div>
 
           </div>
 
-          <div class="profit-info">
+        </section>
+
+
+        <!-- ==================================================
+             PROFILE
+        ================================================== -->
+
+        <section
+          id="profilePage"
+          class="page"
+        >
+
+          <div class="page-header">
 
             <div>
-              <span>Total Revenue</span>
-              <strong id="reportRevenue">Rs. 0</strong>
-            </div>
-
-            <div>
-              <span>Total Cost</span>
-              <strong id="reportCost">Rs. 0</strong>
-            </div>
-
-            <div>
-              <span>Total Profit</span>
-              <strong id="reportProfit">Rs. 0</strong>
-            </div>
-
-            <div>
-              <span>Total Items Sold</span>
-              <strong id="reportItems">0</strong>
+              <h2>Profile</h2>
+              <p>Your account information</p>
             </div>
 
           </div>
 
-        </div>
 
-      </section>
+          <div class="profile-card">
 
-
-      <!-- ==================================================
-           HISTORY
-      =================================================== -->
-
-      <section
-        id="historyPage"
-        class="page"
-      >
-
-        <div class="page-heading">
-
-          <div>
-            <h1>History</h1>
-            <p>Medicine and sales activity</p>
-          </div>
-
-        </div>
-
-
-        <div
-          id="historyList"
-          class="history-list"
-        ></div>
-
-      </section>
-
-
-      <!-- ==================================================
-           PROFILE
-      =================================================== -->
-
-      <section
-        id="profilePage"
-        class="page"
-      >
-
-        <div class="page-heading">
-
-          <div>
-            <h1>Profile</h1>
-            <p>Your account information</p>
-          </div>
-
-        </div>
-
-
-        <div class="profile-card">
-
-          <div id="profileAvatar" class="profile-avatar">
-            U
-          </div>
-
-          <div class="profile-details">
+            <div
+              class="profile-avatar"
+              id="profileAvatar"
+            >
+              U
+            </div>
 
             <h2 id="profileName">
               User
             </h2>
 
-            <p id="profileEmail">
-              email@example.com
+            <p
+              id="profileEmail"
+              style="color:#64748b;margin-top:5px;"
+            >
+              -
             </p>
 
-            <span class="role-badge">
-              User
-            </span>
+
+            <div class="profile-info">
+
+              <div class="profile-line">
+                <span>Account Type</span>
+                <strong>User</strong>
+              </div>
+
+              <div class="profile-line">
+                <span>Account Status</span>
+                <span class="badge green">
+                  Active
+                </span>
+              </div>
+
+              <div class="profile-line">
+                <span>Data Security</span>
+                <span>
+                  Personal
+                </span>
+              </div>
+
+            </div>
 
           </div>
 
-        </div>
+        </section>
 
-      </section>
+      </main>
 
-    </main>
+    </div>
 
-  </div>
+  </section>
 
 
-  <!-- ======================================================
+  <!-- ========================================================
        MEDICINE MODAL
-  ======================================================= -->
+  ========================================================= -->
 
   <div
     id="medicineModal"
-    class="modal hidden"
+    class="modal-overlay hidden"
   >
 
-    <div class="modal-card">
+    <div class="modal">
 
       <div class="modal-header">
 
-        <div>
-          <h2 id="medicineModalTitle">
-            Add Medicine
-          </h2>
-
-          <p>
-            Enter medicine details
-          </p>
-        </div>
+        <h2 id="medicineModalTitle">
+          Add Medicine
+        </h2>
 
         <button
-          class="close-modal"
-          data-close="medicineModal"
+          class="close-btn"
+          data-close-modal="medicineModal"
+          type="button"
         >
           ×
         </button>
@@ -793,34 +1632,36 @@
       <form id="medicineForm">
 
         <input
-          id="medicineId"
           type="hidden"
+          id="medicineId"
         >
 
         <div class="form-grid">
 
-          <div class="input-group">
-            <label>Medicine Name *</label>
+          <div class="form-group form-full">
+
+            <label>Medicine Name</label>
+
             <input
               id="medicineName"
+              class="form-control"
+              type="text"
+              placeholder="e.g. Amoxicillin"
               required
-              placeholder="e.g. Poultry Vitamin"
             >
+
           </div>
 
-          <div class="input-group">
-            <label>Company / Brand</label>
-            <input
-              id="medicineCompany"
-              placeholder="Company name"
+
+          <div class="form-group">
+
+            <label>Category</label>
+
+            <select
+              id="medicineCategory"
+              class="form-control"
+              required
             >
-          </div>
-
-          <div class="input-group">
-
-            <label>Category *</label>
-
-            <select id="medicineCategory" required>
 
               <option value="">
                 Select category
@@ -839,11 +1680,15 @@
           </div>
 
 
-          <div class="input-group">
+          <div class="form-group">
 
-            <label>Unit *</label>
+            <label>Unit</label>
 
-            <select id="medicineUnit" required>
+            <select
+              id="medicineUnit"
+              class="form-control"
+              required
+            >
 
               <option value="">
                 Select unit
@@ -864,104 +1709,100 @@
           </div>
 
 
-          <div class="input-group">
+          <div class="form-group">
 
-            <label>Purchase Price *</label>
+            <label>Stock Quantity</label>
 
             <input
-              id="purchasePrice"
+              id="medicineStock"
+              class="form-control"
               type="number"
               min="0"
               step="0.01"
-              required
               placeholder="0"
+              required
             >
 
           </div>
 
 
-          <div class="input-group">
+          <div class="form-group">
 
-            <label>Selling Price *</label>
+            <label>Minimum Stock Alert</label>
 
             <input
-              id="sellingPrice"
+              id="medicineMinStock"
+              class="form-control"
               type="number"
               min="0"
               step="0.01"
-              required
-              placeholder="0"
-            >
-
-          </div>
-
-
-          <div class="input-group">
-
-            <label>Stock Quantity *</label>
-
-            <input
-              id="stockQuantity"
-              type="number"
-              min="0"
-              required
-              placeholder="0"
-            >
-
-          </div>
-
-
-          <div class="input-group">
-
-            <label>Minimum Stock Level</label>
-
-            <input
-              id="minimumStock"
-              type="number"
-              min="0"
               value="5"
-              placeholder="5"
+              required
             >
 
           </div>
 
 
-          <div class="input-group">
+          <div class="form-group">
 
-            <label>Purchase Date</label>
+            <label>Purchase Price</label>
 
             <input
-              id="purchaseDate"
-              type="date"
+              id="medicinePurchasePrice"
+              class="form-control"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              required
             >
 
           </div>
 
 
-          <div class="input-group">
+          <div class="form-group">
 
-            <label>Expiry Date *</label>
+            <label>Selling Price</label>
 
             <input
-              id="expiryDate"
+              id="medicineSellingPrice"
+              class="form-control"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Expiry Date</label>
+
+            <input
+              id="medicineExpiry"
+              class="form-control"
               type="date"
               required
             >
 
           </div>
 
-        </div>
 
+          <div class="form-group">
 
-        <div class="input-group">
+            <label>Stock Entry Date</label>
 
-          <label>Notes</label>
+            <input
+              id="medicineStockDate"
+              class="form-control"
+              type="date"
+              required
+            >
 
-          <textarea
-            id="medicineNotes"
-            rows="3"
-            placeholder="Optional notes..."
-          ></textarea>
+          </div>
 
         </div>
 
@@ -971,14 +1812,14 @@
           <button
             type="button"
             class="secondary-btn"
-            data-close="medicineModal"
+            data-close-modal="medicineModal"
           >
             Cancel
           </button>
 
           <button
             type="submit"
-            class="primary-btn"
+            class="action-btn"
           >
             Save Medicine
           </button>
@@ -992,27 +1833,25 @@
   </div>
 
 
-  <!-- ======================================================
+  <!-- ========================================================
        SALE MODAL
-  ======================================================= -->
+  ========================================================= -->
 
   <div
     id="saleModal"
-    class="modal hidden"
+    class="modal-overlay hidden"
   >
 
-    <div class="modal-card">
+    <div class="modal">
 
       <div class="modal-header">
 
-        <div>
-          <h2>New Sale</h2>
-          <p>Record a medicine sale</p>
-        </div>
+        <h2>Record Sale</h2>
 
         <button
-          class="close-modal"
-          data-close="saleModal"
+          class="close-btn"
+          data-close-modal="saleModal"
+          type="button"
         >
           ×
         </button>
@@ -1022,90 +1861,104 @@
 
       <form id="saleForm">
 
-        <div class="input-group">
+        <div class="form-grid">
 
-          <label>Medicine *</label>
+          <div class="form-group form-full">
 
-          <select
-            id="saleMedicine"
-            required
-          >
+            <label>Medicine</label>
 
-            <option value="">
-              Select medicine
-            </option>
+            <select
+              id="saleMedicine"
+              class="form-control"
+              required
+            >
 
-          </select>
+              <option value="">
+                Select medicine
+              </option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Quantity Sold</label>
+
+            <input
+              id="saleQuantity"
+              class="form-control"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Sale Date</label>
+
+            <input
+              id="saleDate"
+              class="form-control"
+              type="date"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Sale Amount</label>
+
+            <input
+              id="saleAmount"
+              class="form-control"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>Cost Amount</label>
+
+            <input
+              id="saleCost"
+              class="form-control"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            >
+
+          </div>
 
         </div>
 
 
         <div
-          id="saleMedicineInfo"
-          class="sale-info hidden"
+          style="
+            background:#eff6ff;
+            padding:13px;
+            border-radius:11px;
+            margin-top:5px;
+            font-size:13px;
+          "
         >
-
-          <div>
-            <span>Available Stock</span>
-            <strong id="saleAvailableStock">0</strong>
-          </div>
-
-          <div>
-            <span>Purchase Price</span>
-            <strong id="salePurchasePrice">Rs. 0</strong>
-          </div>
-
-          <div>
-            <span>Selling Price</span>
-            <strong id="saleSellingPrice">Rs. 0</strong>
-          </div>
-
-        </div>
-
-
-        <div class="input-group">
-
-          <label>Quantity *</label>
-
-          <input
-            id="saleQuantity"
-            type="number"
-            min="1"
-            required
-            placeholder="Quantity sold"
-          >
-
-        </div>
-
-
-        <div class="input-group">
-
-          <label>Customer Name</label>
-
-          <input
-            id="customerName"
-            placeholder="Optional"
-          >
-
-        </div>
-
-
-        <div class="sale-total">
-
-          <div>
-            <span>Total Sale</span>
-            <strong id="saleTotal">
-              Rs. 0
-            </strong>
-          </div>
-
-          <div>
-            <span>Estimated Profit</span>
-            <strong id="saleProfit">
-              Rs. 0
-            </strong>
-          </div>
-
+          Estimated Profit:
+          <strong id="saleProfitPreview">
+            Rs 0
+          </strong>
         </div>
 
 
@@ -1114,16 +1967,16 @@
           <button
             type="button"
             class="secondary-btn"
-            data-close="saleModal"
+            data-close-modal="saleModal"
           >
             Cancel
           </button>
 
           <button
             type="submit"
-            class="primary-btn"
+            class="action-btn"
           >
-            Complete Sale
+            Save Sale
           </button>
 
         </div>
@@ -1135,16 +1988,397 @@
   </div>
 
 
-  <!-- ======================================================
-       TOAST
-  ======================================================= -->
+  <!-- TOAST -->
 
-  <div id="toast" class="toast">
-    <span id="toastMessage"></span>
-  </div>
+  <div id="toastContainer"></div>
 
 
-  <script type="module" src="app.js"></script>
+  <script>
+
+    /* ========================================================
+       UI ONLY
+       Firebase database logic will be connected in app.js
+       ======================================================== */
+
+    const $ = (id) => document.getElementById(id);
+
+    function showToast(message) {
+
+      const container = $("toastContainer");
+
+      const toast = document.createElement("div");
+
+      toast.className = "toast";
+      toast.textContent = message;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.remove();
+      }, 3000);
+    }
+
+
+    /* ================= AUTH SWITCH ================= */
+
+    $("showRegisterBtn").addEventListener("click", () => {
+
+      $("loginForm").classList.add("hidden");
+      $("registerForm").classList.remove("hidden");
+
+      $("loginSwitchText").classList.add("hidden");
+      $("registerSwitchText").classList.remove("hidden");
+
+    });
+
+
+    $("showLoginBtn").addEventListener("click", () => {
+
+      $("registerForm").classList.add("hidden");
+      $("loginForm").classList.remove("hidden");
+
+      $("registerSwitchText").classList.add("hidden");
+      $("loginSwitchText").classList.remove("hidden");
+
+    });
+
+
+    /* ================= SIDEBAR ================= */
+
+    $("menuBtn").addEventListener("click", () => {
+
+      $("sidebar").classList.toggle("open");
+
+    });
+
+
+    document.querySelectorAll(".nav-item").forEach(button => {
+
+      button.addEventListener("click", () => {
+
+        const pageId = button.dataset.page;
+
+        document.querySelectorAll(".nav-item")
+          .forEach(item => item.classList.remove("active"));
+
+        button.classList.add("active");
+
+        document.querySelectorAll(".page")
+          .forEach(page => page.classList.remove("active"));
+
+        $(pageId).classList.add("active");
+
+        $("sidebar").classList.remove("open");
+
+      });
+
+    });
+
+
+    /* ================= QUICK NAVIGATION ================= */
+
+    document.querySelectorAll("[data-open-page]").forEach(button => {
+
+      button.addEventListener("click", () => {
+
+        const pageId = button.dataset.openPage;
+
+        document.querySelectorAll(".nav-item")
+          .forEach(item => {
+
+            item.classList.toggle(
+              "active",
+              item.dataset.page === pageId
+            );
+
+          });
+
+        document.querySelectorAll(".page")
+          .forEach(page => page.classList.remove("active"));
+
+        $(pageId).classList.add("active");
+
+      });
+
+    });
+
+
+    /* ================= MODALS ================= */
+
+    function openModal(id) {
+      $(id).classList.remove("hidden");
+    }
+
+    function closeModal(id) {
+      $(id).classList.add("hidden");
+    }
+
+
+    document.querySelectorAll("[data-close-modal]")
+      .forEach(button => {
+
+        button.addEventListener("click", () => {
+
+          closeModal(button.dataset.closeModal);
+
+        });
+
+      });
+
+
+    document.querySelectorAll(".modal-overlay")
+      .forEach(overlay => {
+
+        overlay.addEventListener("click", (event) => {
+
+          if (event.target === overlay) {
+            overlay.classList.add("hidden");
+          }
+
+        });
+
+      });
+
+
+    /* ================= ADD MEDICINE ================= */
+
+    $("addMedicineBtn").addEventListener("click", () => {
+
+      $("medicineModalTitle").textContent = "Add Medicine";
+
+      $("medicineForm").reset();
+
+      $("medicineId").value = "";
+
+      $("medicineStockDate").value =
+        new Date().toISOString().split("T")[0];
+
+      openModal("medicineModal");
+
+    });
+
+
+    $("quickAddMedicine").addEventListener("click", () => {
+
+      $("addMedicineBtn").click();
+
+    });
+
+
+    /* ================= SALE ================= */
+
+    $("recordSaleBtn").addEventListener("click", () => {
+
+      $("saleForm").reset();
+
+      $("saleDate").value =
+        new Date().toISOString().split("T")[0];
+
+      openModal("saleModal");
+
+    });
+
+
+    $("quickSale").addEventListener("click", () => {
+
+      $("recordSaleBtn").click();
+
+    });
+
+
+    /* ================= SALE PROFIT PREVIEW ================= */
+
+    function updateSaleProfit() {
+
+      const sale =
+        Number($("saleAmount").value) || 0;
+
+      const cost =
+        Number($("saleCost").value) || 0;
+
+      const profit = sale - cost;
+
+      $("saleProfitPreview").textContent =
+        "Rs " + profit.toLocaleString();
+
+    }
+
+
+    $("saleAmount").addEventListener(
+      "input",
+      updateSaleProfit
+    );
+
+    $("saleCost").addEventListener(
+      "input",
+      updateSaleProfit
+    );
+
+
+    /* ================= ESC MODAL ================= */
+
+    document.addEventListener("keydown", event => {
+
+      if (event.key === "Escape") {
+
+        document.querySelectorAll(".modal-overlay")
+          .forEach(modal => {
+            modal.classList.add("hidden");
+          });
+
+      }
+
+    });
+
+
+    /* ================= REFRESH ================= */
+
+    $("refreshBtn").addEventListener("click", () => {
+
+      showToast("Refreshing data...");
+
+      window.dispatchEvent(
+        new CustomEvent("poultry:refresh")
+      );
+
+    });
+
+
+    /* ================= FORM FALLBACK ================= */
+
+    $("loginForm").addEventListener("submit", event => {
+
+      event.preventDefault();
+
+      window.dispatchEvent(
+        new CustomEvent("poultry:login", {
+          detail: {
+            email: $("loginEmail").value,
+            password: $("loginPassword").value
+          }
+        })
+      );
+
+    });
+
+
+    $("registerForm").addEventListener("submit", event => {
+
+      event.preventDefault();
+
+      const password =
+        $("registerPassword").value;
+
+      const confirm =
+        $("registerConfirmPassword").value;
+
+      if (password !== confirm) {
+
+        showToast("Passwords do not match.");
+        return;
+
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("poultry:register", {
+          detail: {
+            name: $("registerName").value,
+            email: $("registerEmail").value,
+            password
+          }
+        })
+      );
+
+    });
+
+
+    $("forgotPasswordBtn").addEventListener("click", () => {
+
+      const email = $("loginEmail").value.trim();
+
+      if (!email) {
+
+        showToast("Enter your email address first.");
+        $("loginEmail").focus();
+        return;
+
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("poultry:forgot-password", {
+          detail: { email }
+        })
+      );
+
+    });
+
+
+    $("medicineForm").addEventListener("submit", event => {
+
+      event.preventDefault();
+
+      window.dispatchEvent(
+        new CustomEvent("poultry:save-medicine")
+      );
+
+    });
+
+
+    $("saleForm").addEventListener("submit", event => {
+
+      event.preventDefault();
+
+      window.dispatchEvent(
+        new CustomEvent("poultry:save-sale")
+      );
+
+    });
+
+
+    $("logoutBtn").addEventListener("click", () => {
+
+      window.dispatchEvent(
+        new CustomEvent("poultry:logout")
+      );
+
+    });
+
+
+    /* ================= GLOBAL HELPERS ================= */
+
+    window.PoultryUI = {
+
+      showApp() {
+
+        $("authScreen").classList.add("hidden");
+        $("appScreen").classList.remove("hidden");
+
+      },
+
+      showAuth() {
+
+        $("appScreen").classList.add("hidden");
+        $("authScreen").classList.remove("hidden");
+
+      },
+
+      openModal,
+
+      closeModal,
+
+      showToast,
+
+      setText(id, value) {
+
+        if ($(id)) {
+          $(id).textContent = value;
+        }
+
+      }
+
+    };
+
+  </script>
 
 </body>
-  </html>
+                           </html>
