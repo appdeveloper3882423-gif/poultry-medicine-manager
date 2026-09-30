@@ -1,7 +1,7 @@
 // ============================================================
 // POULTRY MEDICINE MANAGER
-// Version 1.0.2
 // Main Application
+// Version 1.0.3
 // ============================================================
 
 import {
@@ -16,7 +16,7 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile
-} from "firebase/auth";
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 import {
   collection,
@@ -27,12 +27,9 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
-  query,
-  where,
-  orderBy,
   serverTimestamp,
   runTransaction
-} from "firebase/firestore";
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 
 // ============================================================
@@ -40,6 +37,7 @@ import {
 // ============================================================
 
 let currentUser = null;
+
 let medicines = [];
 let sales = [];
 let history = [];
@@ -54,17 +52,29 @@ const EXPIRY_WARNING_DAYS = 30;
 
 const $ = id => document.getElementById(id);
 
+
 function todayString() {
-  return new Date().toISOString().split("T")[0];
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
+
 
 function money(value) {
   return "Rs " + Number(value || 0).toLocaleString();
 }
 
+
 function number(value) {
-  return Number(value || 0);
+  const result = Number(value);
+
+  return Number.isFinite(result) ? result : 0;
 }
+
 
 function escapeHTML(value) {
   return String(value ?? "")
@@ -75,157 +85,65 @@ function escapeHTML(value) {
     .replaceAll("'", "&#039;");
 }
 
+
 function showToast(message) {
+
   if (window.PoultryUI?.showToast) {
     window.PoultryUI.showToast(message);
   }
+
 }
+
+
+function setText(id, value) {
+
+  if ($(id)) {
+    $(id).textContent = value;
+  }
+
+}
+
 
 function userCollection(name) {
-  return collection(db, "users", currentUser.uid, name);
+
+  if (!currentUser) {
+    throw new Error("User is not logged in.");
+  }
+
+  return collection(
+    db,
+    "users",
+    currentUser.uid,
+    name
+  );
+
 }
+
 
 function userDoc(name, id) {
-  return doc(db, "users", currentUser.uid, name, id);
+
+  if (!currentUser) {
+    throw new Error("User is not logged in.");
+  }
+
+  return doc(
+    db,
+    "users",
+    currentUser.uid,
+    name,
+    id
+  );
+
 }
 
 
 // ============================================================
-// AUTH
+// FIREBASE ERROR HANDLER
 // ============================================================
-
-onAuthStateChanged(auth, async user => {
-
-  currentUser = user;
-
-  if (user) {
-
-    await loadUserProfile();
-    await loadAllData();
-
-    PoultryUI.showApp();
-
-    updateProfileUI();
-
-  } else {
-
-    PoultryUI.showAuth();
-
-  }
-
-});
-
-
-async function registerUser({ name, email, password }) {
-
-  try {
-
-    const result =
-      await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-    const user = result.user;
-
-    await updateProfile(user, {
-      displayName: name
-    });
-
-    await setDoc(
-      doc(db, "users", user.uid),
-      {
-        uid: user.uid,
-        name,
-        email: user.email,
-        role: "user",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-
-    showToast("Account created successfully.");
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(firebaseError(error));
-
-  }
-
-}
-
-
-async function loginUser({ email, password }) {
-
-  try {
-
-    await signInWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
-
-    showToast("Login successful.");
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(firebaseError(error));
-
-  }
-
-}
-
-
-async function resetPassword(email) {
-
-  try {
-
-    await sendPasswordResetEmail(
-      auth,
-      email
-    );
-
-    showToast(
-      "Password reset email sent."
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(firebaseError(error));
-
-  }
-
-}
-
-
-async function logoutUser() {
-
-  try {
-
-    await signOut(auth);
-
-    showToast("Logged out successfully.");
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast("Logout failed.");
-
-  }
-
-}
-
 
 function firebaseError(error) {
+
+  console.error("Firebase Error:", error);
 
   const code = error?.code || "";
 
@@ -250,13 +168,339 @@ function firebaseError(error) {
       "Email or password is incorrect.",
 
     "auth/too-many-requests":
-      "Too many attempts. Please try again later."
+      "Too many attempts. Please try again later.",
+
+    "auth/network-request-failed":
+      "Network error. Please check your internet connection.",
+
+    "auth/operation-not-allowed":
+      "Email/Password authentication is not enabled in Firebase.",
+
+    "permission-denied":
+      "Firebase permission denied. Please check Firestore Rules."
 
   };
 
-  return errors[code] ||
+  return (
+    errors[code] ||
     error?.message ||
-    "Something went wrong.";
+    "Something went wrong."
+  );
+
+}
+
+
+// ============================================================
+// AUTH
+// ============================================================
+
+onAuthStateChanged(
+  auth,
+  async user => {
+
+    currentUser = user;
+
+    if (!user) {
+
+      if (window.PoultryUI) {
+        window.PoultryUI.showAuth();
+      }
+
+      return;
+
+    }
+
+
+    try {
+
+      await loadUserProfile();
+
+      await loadAllData();
+
+      if (window.PoultryUI) {
+        window.PoultryUI.showApp();
+      }
+
+      updateProfileUI();
+
+    } catch (error) {
+
+      console.error(
+        "Authentication state error:",
+        error
+      );
+
+      showToast(
+        "Could not load your account data."
+      );
+
+    }
+
+  }
+);
+
+
+// ============================================================
+// REGISTER
+// ============================================================
+
+async function registerUser(data) {
+
+  if (!data) return;
+
+  const name =
+    String(data.name || "").trim();
+
+  const email =
+    String(data.email || "").trim();
+
+  const password =
+    String(data.password || "");
+
+
+  if (!name) {
+
+    showToast("Enter your full name.");
+
+    return;
+
+  }
+
+
+  if (!email) {
+
+    showToast("Enter your email address.");
+
+    return;
+
+  }
+
+
+  if (password.length < 6) {
+
+    showToast(
+      "Password must be at least 6 characters."
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    showToast("Creating your account...");
+
+
+    const result =
+      await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+
+    const user =
+      result.user;
+
+
+    try {
+
+      await updateProfile(
+        user,
+        {
+          displayName: name
+        }
+      );
+
+    } catch (profileError) {
+
+      console.warn(
+        "Profile name update warning:",
+        profileError
+      );
+
+    }
+
+
+    await setDoc(
+      doc(
+        db,
+        "users",
+        user.uid
+      ),
+      {
+        uid: user.uid,
+        name,
+        email: user.email,
+        role: "user",
+        active: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      },
+      {
+        merge: true
+      }
+    );
+
+
+    showToast(
+      "Account created successfully."
+    );
+
+
+    const registerForm =
+      $("registerForm");
+
+    if (registerForm) {
+      registerForm.reset();
+    }
+
+
+  } catch (error) {
+
+    showToast(
+      firebaseError(error)
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// LOGIN
+// ============================================================
+
+async function loginUser(data) {
+
+  if (!data) return;
+
+  const email =
+    String(data.email || "").trim();
+
+  const password =
+    String(data.password || "");
+
+
+  if (!email) {
+
+    showToast("Enter your email address.");
+
+    return;
+
+  }
+
+
+  if (!password) {
+
+    showToast("Enter your password.");
+
+    return;
+
+  }
+
+
+  try {
+
+    showToast("Logging in...");
+
+
+    await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+
+    showToast(
+      "Login successful."
+    );
+
+
+  } catch (error) {
+
+    showToast(
+      firebaseError(error)
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// PASSWORD RESET
+// ============================================================
+
+async function resetPassword(email) {
+
+  const cleanEmail =
+    String(email || "").trim();
+
+
+  if (!cleanEmail) {
+
+    showToast(
+      "Enter your email address first."
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    await sendPasswordResetEmail(
+      auth,
+      cleanEmail
+    );
+
+
+    showToast(
+      "Password reset email sent."
+    );
+
+
+  } catch (error) {
+
+    showToast(
+      firebaseError(error)
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// LOGOUT
+// ============================================================
+
+async function logoutUser() {
+
+  try {
+
+    await signOut(auth);
+
+    medicines = [];
+    sales = [];
+    history = [];
+
+    showToast(
+      "Logged out successfully."
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    showToast(
+      "Logout failed."
+    );
+
+  }
 
 }
 
@@ -269,12 +513,20 @@ async function loadUserProfile() {
 
   if (!currentUser) return;
 
+
+  const ref =
+    doc(
+      db,
+      "users",
+      currentUser.uid
+    );
+
+
   try {
 
-    const ref =
-      doc(db, "users", currentUser.uid);
+    const snap =
+      await getDoc(ref);
 
-    const snap = await getDoc(ref);
 
     if (!snap.exists()) {
 
@@ -285,12 +537,16 @@ async function loadUserProfile() {
           name:
             currentUser.displayName ||
             "User",
-          email: currentUser.email,
+          email:
+            currentUser.email || "",
           role: "user",
+          active: true,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         },
-        { merge: true }
+        {
+          merge: true
+        }
       );
 
     }
@@ -302,6 +558,8 @@ async function loadUserProfile() {
       error
     );
 
+    throw error;
+
   }
 
 }
@@ -311,23 +569,40 @@ function updateProfileUI() {
 
   if (!currentUser) return;
 
+
   const name =
     currentUser.displayName ||
     currentUser.email?.split("@")[0] ||
     "User";
 
+
   const email =
-    currentUser.email || "-";
+    currentUser.email ||
+    "-";
 
-  if ($("profileName"))
-    $("profileName").textContent = name;
 
-  if ($("profileEmail"))
-    $("profileEmail").textContent = email;
+  setText(
+    "profileName",
+    name
+  );
 
-  if ($("profileAvatar"))
-    $("profileAvatar").textContent =
+
+  setText(
+    "profileEmail",
+    email
+  );
+
+
+  const avatar =
+    $("profileAvatar");
+
+
+  if (avatar) {
+
+    avatar.textContent =
       name.charAt(0).toUpperCase();
+
+  }
 
 }
 
@@ -340,6 +615,7 @@ async function loadAllData() {
 
   if (!currentUser) return;
 
+
   try {
 
     await Promise.all([
@@ -348,7 +624,9 @@ async function loadAllData() {
       loadHistory()
     ]);
 
+
     refreshEverything();
+
 
   } catch (error) {
 
@@ -357,9 +635,7 @@ async function loadAllData() {
       error
     );
 
-    showToast(
-      "Could not load your data."
-    );
+    throw error;
 
   }
 
@@ -374,11 +650,12 @@ async function loadMedicines() {
 
   medicines = [];
 
-  const ref =
-    userCollection("medicines");
 
   const snapshot =
-    await getDocs(ref);
+    await getDocs(
+      userCollection("medicines")
+    );
+
 
   snapshot.forEach(item => {
 
@@ -397,14 +674,17 @@ function medicineStatus(medicine) {
   const stock =
     number(medicine.stock);
 
+
   const minStock =
     number(
       medicine.minStock ??
       LOW_STOCK_DEFAULT
     );
 
+
   const expiry =
     medicine.expiry || "";
+
 
   if (stock <= 0) {
 
@@ -416,17 +696,20 @@ function medicineStatus(medicine) {
 
   }
 
+
   if (expiry) {
 
-    const today =
-      new Date();
-
     const expiryDate =
-      new Date(expiry);
+      new Date(
+        expiry + "T23:59:59"
+      );
+
 
     if (
-      !Number.isNaN(expiryDate.getTime()) &&
-      expiryDate < today
+      !Number.isNaN(
+        expiryDate.getTime()
+      ) &&
+      expiryDate < new Date()
     ) {
 
       return {
@@ -439,6 +722,7 @@ function medicineStatus(medicine) {
 
   }
 
+
   if (stock <= minStock) {
 
     return {
@@ -449,6 +733,7 @@ function medicineStatus(medicine) {
 
   }
 
+
   if (isExpiringSoon(expiry)) {
 
     return {
@@ -458,6 +743,7 @@ function medicineStatus(medicine) {
     };
 
   }
+
 
   return {
     key: "available",
@@ -472,15 +758,42 @@ function isExpiringSoon(expiry) {
 
   if (!expiry) return false;
 
+
   const today =
     new Date();
 
-  today.setHours(0, 0, 0, 0);
+  today.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
 
   const expiryDate =
-    new Date(expiry);
+    new Date(
+      expiry + "T00:00:00"
+    );
 
-  expiryDate.setHours(0, 0, 0, 0);
+
+  if (
+    Number.isNaN(
+      expiryDate.getTime()
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  expiryDate.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
 
   const difference =
     Math.ceil(
@@ -490,6 +803,7 @@ function isExpiringSoon(expiry) {
       (1000 * 60 * 60 * 24)
     );
 
+
   return (
     difference >= 0 &&
     difference <= EXPIRY_WARNING_DAYS
@@ -498,47 +812,63 @@ function isExpiringSoon(expiry) {
 }
 
 
+// ============================================================
+// RENDER MEDICINES
+// ============================================================
+
 function renderMedicines() {
 
   const body =
     $("medicineTableBody");
 
+
   if (!body) return;
 
+
   const search =
-    (
+    String(
       $("medicineSearch")?.value ||
       ""
     )
       .toLowerCase()
       .trim();
 
+
   const filter =
     $("medicineFilter")?.value ||
     "all";
 
+
   let list =
     [...medicines];
+
 
   if (search) {
 
     list =
-      list.filter(m =>
-        String(m.name || "")
-          .toLowerCase()
-          .includes(search)
+      list.filter(
+        medicine =>
+          String(
+            medicine.name || ""
+          )
+            .toLowerCase()
+            .includes(search)
       );
 
   }
+
 
   if (filter !== "all") {
 
     list =
-      list.filter(m =>
-        medicineStatus(m).key === filter
+      list.filter(
+        medicine =>
+          medicineStatus(medicine).key ===
+          filter
       );
 
   }
+
 
   if (!list.length) {
 
@@ -554,123 +884,156 @@ function renderMedicines() {
 
   }
 
+
   body.innerHTML =
-    list.map(medicine => {
+    list.map(
+      medicine => {
 
-      const status =
-        medicineStatus(medicine);
+        const status =
+          medicineStatus(medicine);
 
-      return `
-        <tr>
 
-          <td>
-            <strong>
-              ${escapeHTML(medicine.name)}
-            </strong>
-          </td>
+        return `
+          <tr>
 
-          <td>
-            ${escapeHTML(medicine.category || "-")}
-          </td>
+            <td>
+              <strong>
+                ${escapeHTML(medicine.name)}
+              </strong>
+            </td>
 
-          <td>
-            ${number(medicine.stock)}
-          </td>
+            <td>
+              ${escapeHTML(
+                medicine.category || "-"
+              )}
+            </td>
 
-          <td>
-            ${escapeHTML(medicine.unit || "-")}
-          </td>
+            <td>
+              ${number(medicine.stock)}
+            </td>
 
-          <td>
-            ${escapeHTML(medicine.expiry || "-")}
-          </td>
+            <td>
+              ${escapeHTML(
+                medicine.unit || "-"
+              )}
+            </td>
 
-          <td>
-            ${escapeHTML(medicine.stockDate || "-")}
-          </td>
+            <td>
+              ${escapeHTML(
+                medicine.expiry || "-"
+              )}
+            </td>
 
-          <td>
-            <span class="badge ${status.className}">
-              ${status.label}
-            </span>
-          </td>
+            <td>
+              ${escapeHTML(
+                medicine.stockDate || "-"
+              )}
+            </td>
 
-          <td>
+            <td>
+              <span class="badge ${status.className}">
+                ${status.label}
+              </span>
+            </td>
 
-            <button
-              type="button"
-              onclick="editMedicine('${medicine.id}')"
-              style="
-                border:0;
-                background:#dbeafe;
-                color:#1d4ed8;
-                padding:7px 9px;
-                border-radius:7px;
-                margin-right:5px;
-              "
-            >
-              Edit
-            </button>
+            <td>
 
-            <button
-              type="button"
-              onclick="deleteMedicine('${medicine.id}')"
-              style="
-                border:0;
-                background:#fee2e2;
-                color:#b91c1c;
-                padding:7px 9px;
-                border-radius:7px;
-              "
-            >
-              Delete
-            </button>
+              <button
+                type="button"
+                onclick="editMedicine('${medicine.id}')"
+                style="
+                  border:0;
+                  background:#dbeafe;
+                  color:#1d4ed8;
+                  padding:7px 9px;
+                  border-radius:7px;
+                  margin-right:5px;
+                "
+              >
+                Edit
+              </button>
 
-          </td>
+              <button
+                type="button"
+                onclick="deleteMedicine('${medicine.id}')"
+                style="
+                  border:0;
+                  background:#fee2e2;
+                  color:#b91c1c;
+                  padding:7px 9px;
+                  border-radius:7px;
+                "
+              >
+                Delete
+              </button>
 
-        </tr>
-      `;
+            </td>
 
-    }).join("");
+          </tr>
+        `;
+
+      }
+    ).join("");
 
 }
 
 
+// ============================================================
+// SAVE MEDICINE
+// ============================================================
+
 async function saveMedicine() {
 
-  if (!currentUser) return;
+  if (!currentUser) {
+
+    showToast("Please login first.");
+
+    return;
+
+  }
+
 
   const id =
-    $("medicineId").value.trim();
+    $("medicineId")?.value.trim() || "";
+
 
   const medicine = {
 
     name:
-      $("medicineName").value.trim(),
+      $("medicineName")?.value.trim() || "",
 
     category:
-      $("medicineCategory").value,
+      $("medicineCategory")?.value || "",
 
     unit:
-      $("medicineUnit").value,
+      $("medicineUnit")?.value || "",
 
     stock:
-      number($("medicineStock").value),
+      number(
+        $("medicineStock")?.value
+      ),
 
     minStock:
-      number($("medicineMinStock").value),
+      number(
+        $("medicineMinStock")?.value
+      ),
 
     purchasePrice:
-      number($("medicinePurchasePrice").value),
+      number(
+        $("medicinePurchasePrice")?.value
+      ),
 
     sellingPrice:
-      number($("medicineSellingPrice").value),
+      number(
+        $("medicineSellingPrice")?.value
+      ),
 
     expiry:
-      $("medicineExpiry").value,
+      $("medicineExpiry")?.value || "",
 
     stockDate:
-      $("medicineStockDate").value,
+      $("medicineStockDate")?.value ||
+      todayString(),
 
     updatedAt:
       serverTimestamp()
@@ -680,7 +1043,10 @@ async function saveMedicine() {
 
   if (!medicine.name) {
 
-    showToast("Enter medicine name.");
+    showToast(
+      "Enter medicine name."
+    );
+
     return;
 
   }
@@ -690,21 +1056,22 @@ async function saveMedicine() {
 
     if (id) {
 
-      const old =
-        medicines.find(
-          item => item.id === id
-        );
-
       await updateDoc(
-        userDoc("medicines", id),
+        userDoc(
+          "medicines",
+          id
+        ),
         medicine
       );
 
+
       await addHistory({
 
-        action: "Medicine Updated",
+        action:
+          "Medicine Updated",
 
-        medicineId: id,
+        medicineId:
+          id,
 
         medicineName:
           medicine.name,
@@ -717,9 +1084,11 @@ async function saveMedicine() {
 
       });
 
+
       showToast(
         "Medicine updated successfully."
       );
+
 
     } else {
 
@@ -733,11 +1102,14 @@ async function saveMedicine() {
           }
         );
 
+
       await addHistory({
 
-        action: "Stock Added",
+        action:
+          "Stock Added",
 
-        medicineId: ref.id,
+        medicineId:
+          ref.id,
 
         medicineName:
           medicine.name,
@@ -750,26 +1122,32 @@ async function saveMedicine() {
 
       });
 
+
       showToast(
         "Medicine added successfully."
       );
 
     }
 
-    PoultryUI.closeModal(
+
+    window.PoultryUI?.closeModal(
       "medicineModal"
     );
 
+
     await loadMedicines();
 
+    await loadHistory();
+
     refreshEverything();
+
 
   } catch (error) {
 
     console.error(error);
 
     showToast(
-      "Could not save medicine."
+      firebaseError(error)
     );
 
   }
@@ -777,115 +1155,165 @@ async function saveMedicine() {
 }
 
 
-window.editMedicine = function(id) {
+// ============================================================
+// EDIT MEDICINE
+// ============================================================
 
-  const medicine =
-    medicines.find(
-      item => item.id === id
+window.editMedicine =
+  function(id) {
+
+    const medicine =
+      medicines.find(
+        item => item.id === id
+      );
+
+
+    if (!medicine) return;
+
+
+    setText(
+      "medicineModalTitle",
+      "Edit Medicine"
     );
 
-  if (!medicine) return;
 
-  $("medicineModalTitle")
-    .textContent = "Edit Medicine";
-
-  $("medicineId").value =
-    medicine.id;
-
-  $("medicineName").value =
-    medicine.name || "";
-
-  $("medicineCategory").value =
-    medicine.category || "";
-
-  $("medicineUnit").value =
-    medicine.unit || "";
-
-  $("medicineStock").value =
-    medicine.stock ?? 0;
-
-  $("medicineMinStock").value =
-    medicine.minStock ??
-    LOW_STOCK_DEFAULT;
-
-  $("medicinePurchasePrice").value =
-    medicine.purchasePrice ?? 0;
-
-  $("medicineSellingPrice").value =
-    medicine.sellingPrice ?? 0;
-
-  $("medicineExpiry").value =
-    medicine.expiry || "";
-
-  $("medicineStockDate").value =
-    medicine.stockDate ||
-    todayString();
-
-  PoultryUI.openModal(
-    "medicineModal"
-  );
-
-};
+    if ($("medicineId"))
+      $("medicineId").value =
+        medicine.id;
 
 
-window.deleteMedicine = async function(id) {
+    if ($("medicineName"))
+      $("medicineName").value =
+        medicine.name || "";
 
-  const medicine =
-    medicines.find(
-      item => item.id === id
+
+    if ($("medicineCategory"))
+      $("medicineCategory").value =
+        medicine.category || "";
+
+
+    if ($("medicineUnit"))
+      $("medicineUnit").value =
+        medicine.unit || "";
+
+
+    if ($("medicineStock"))
+      $("medicineStock").value =
+        medicine.stock ?? 0;
+
+
+    if ($("medicineMinStock"))
+      $("medicineMinStock").value =
+        medicine.minStock ??
+        LOW_STOCK_DEFAULT;
+
+
+    if ($("medicinePurchasePrice"))
+      $("medicinePurchasePrice").value =
+        medicine.purchasePrice ?? 0;
+
+
+    if ($("medicineSellingPrice"))
+      $("medicineSellingPrice").value =
+        medicine.sellingPrice ?? 0;
+
+
+    if ($("medicineExpiry"))
+      $("medicineExpiry").value =
+        medicine.expiry || "";
+
+
+    if ($("medicineStockDate"))
+      $("medicineStockDate").value =
+        medicine.stockDate ||
+        todayString();
+
+
+    window.PoultryUI?.openModal(
+      "medicineModal"
     );
 
-  if (!medicine) return;
+  };
 
-  const confirmed =
-    confirm(
-      `Delete "${medicine.name}"?`
-    );
 
-  if (!confirmed) return;
+// ============================================================
+// DELETE MEDICINE
+// ============================================================
 
-  try {
+window.deleteMedicine =
+  async function(id) {
 
-    await deleteDoc(
-      userDoc("medicines", id)
-    );
+    const medicine =
+      medicines.find(
+        item => item.id === id
+      );
 
-    await addHistory({
 
-      action: "Medicine Deleted",
+    if (!medicine) return;
 
-      medicineId: id,
 
-      medicineName:
-        medicine.name,
+    const confirmed =
+      confirm(
+        `Delete "${medicine.name}"?`
+      );
 
-      quantity:
-        medicine.stock || 0,
 
-      details:
-        "Medicine removed from inventory."
+    if (!confirmed) return;
 
-    });
 
-    showToast(
-      "Medicine deleted."
-    );
+    try {
 
-    await loadMedicines();
+      await deleteDoc(
+        userDoc(
+          "medicines",
+          id
+        )
+      );
 
-    refreshEverything();
 
-  } catch (error) {
+      await addHistory({
 
-    console.error(error);
+        action:
+          "Medicine Deleted",
 
-    showToast(
-      "Could not delete medicine."
-    );
+        medicineId:
+          id,
 
-  }
+        medicineName:
+          medicine.name,
 
-};
+        quantity:
+          medicine.stock || 0,
+
+        details:
+          "Medicine removed from inventory."
+
+      });
+
+
+      await loadMedicines();
+
+      await loadHistory();
+
+      refreshEverything();
+
+
+      showToast(
+        "Medicine deleted."
+      );
+
+
+    } catch (error) {
+
+      console.error(error);
+
+      showToast(
+        firebaseError(error)
+      );
+
+    }
+
+  };
 
 
 // ============================================================
@@ -896,11 +1324,12 @@ async function loadSales() {
 
   sales = [];
 
-  const ref =
-    userCollection("sales");
 
   const snapshot =
-    await getDocs(ref);
+    await getDocs(
+      userCollection("sales")
+    );
+
 
   snapshot.forEach(item => {
 
@@ -911,23 +1340,33 @@ async function loadSales() {
 
   });
 
+
   sales.sort(
     (a, b) =>
-      String(b.saleDate || "")
-        .localeCompare(
-          String(a.saleDate || "")
+      String(
+        b.saleDate || ""
+      ).localeCompare(
+        String(
+          a.saleDate || ""
         )
+      )
   );
 
 }
 
+
+// ============================================================
+// SALE MEDICINES
+// ============================================================
 
 function populateSaleMedicines() {
 
   const select =
     $("saleMedicine");
 
+
   if (!select) return;
+
 
   select.innerHTML = `
     <option value="">
@@ -935,111 +1374,114 @@ function populateSaleMedicines() {
     </option>
   `;
 
+
   medicines
     .filter(
       medicine =>
         number(medicine.stock) > 0
     )
-    .forEach(medicine => {
+    .forEach(
+      medicine => {
 
-      const option =
-        document.createElement("option");
+        const option =
+          document.createElement(
+            "option"
+          );
 
-      option.value =
-        medicine.id;
 
-      option.textContent =
-        `${medicine.name} — Stock: ${medicine.stock} ${medicine.unit || ""}`;
+        option.value =
+          medicine.id;
 
-      select.appendChild(option);
 
-    });
+        option.textContent =
+          `${medicine.name} — Stock: ${medicine.stock} ${medicine.unit || ""}`;
+
+
+        select.appendChild(
+          option
+        );
+
+      }
+    );
 
 }
 
 
-$("saleMedicine")?.addEventListener(
-  "change",
-  () => {
+// ============================================================
+// SALE PRICE CALCULATION
+// ============================================================
 
-    const medicine =
-      medicines.find(
-        item =>
-          item.id ===
-          $("saleMedicine").value
-      );
+function updateSaleValues() {
 
-    if (!medicine) return;
+  const medicine =
+    medicines.find(
+      item =>
+        item.id ===
+        $("saleMedicine")?.value
+    );
 
-    const quantity =
-      number(
-        $("saleQuantity").value
-      );
 
-    $("saleCost").value =
-      (
-        quantity *
-        number(medicine.purchasePrice)
-      ).toFixed(2);
-
-    $("saleAmount").value =
-      (
-        quantity *
-        number(medicine.sellingPrice)
-      ).toFixed(2);
+  if (!medicine) {
 
     updateSalePreview();
 
+    return;
+
   }
-);
 
 
-$("saleQuantity")?.addEventListener(
-  "input",
-  () => {
+  const quantity =
+    number(
+      $("saleQuantity")?.value
+    );
 
-    const medicine =
-      medicines.find(
-        item =>
-          item.id ===
-          $("saleMedicine").value
-      );
 
-    if (!medicine) return;
+  const cost =
+    quantity *
+    number(
+      medicine.purchasePrice
+    );
 
-    const quantity =
-      number(
-        $("saleQuantity").value
-      );
 
+  const sale =
+    quantity *
+    number(
+      medicine.sellingPrice
+    );
+
+
+  if ($("saleCost"))
     $("saleCost").value =
-      (
-        quantity *
-        number(medicine.purchasePrice)
-      ).toFixed(2);
+      cost.toFixed(2);
 
+
+  if ($("saleAmount"))
     $("saleAmount").value =
-      (
-        quantity *
-        number(medicine.sellingPrice)
-      ).toFixed(2);
+      sale.toFixed(2);
 
-    updateSalePreview();
 
-  }
-);
+  updateSalePreview();
+
+}
 
 
 function updateSalePreview() {
 
   const sale =
-    number($("saleAmount")?.value);
+    number(
+      $("saleAmount")?.value
+    );
+
 
   const cost =
-    number($("saleCost")?.value);
+    number(
+      $("saleCost")?.value
+    );
+
 
   const profit =
     sale - cost;
+
 
   if ($("saleProfitPreview")) {
 
@@ -1052,25 +1494,48 @@ function updateSalePreview() {
 }
 
 
+// ============================================================
+// SAVE SALE
+// ============================================================
+
 async function saveSale() {
 
-  if (!currentUser) return;
+  if (!currentUser) {
+
+    showToast(
+      "Please login first."
+    );
+
+    return;
+
+  }
+
 
   const medicineId =
-    $("saleMedicine").value;
+    $("saleMedicine")?.value || "";
+
 
   const quantity =
-    number($("saleQuantity").value);
+    number(
+      $("saleQuantity")?.value
+    );
+
 
   const saleDate =
-    $("saleDate").value ||
+    $("saleDate")?.value ||
     todayString();
 
+
   const saleAmount =
-    number($("saleAmount").value);
+    number(
+      $("saleAmount")?.value
+    );
+
 
   const costAmount =
-    number($("saleCost").value);
+    number(
+      $("saleCost")?.value
+    );
 
 
   if (!medicineId) {
@@ -1082,6 +1547,7 @@ async function saveSale() {
     return;
 
   }
+
 
   if (quantity <= 0) {
 
@@ -1096,8 +1562,10 @@ async function saveSale() {
 
   const medicine =
     medicines.find(
-      item => item.id === medicineId
+      item =>
+        item.id === medicineId
     );
+
 
   if (!medicine) {
 
@@ -1132,10 +1600,18 @@ async function saveSale() {
         medicineId
       );
 
+
     const saleRef =
       doc(
         userCollection("sales")
       );
+
+
+    let soldMedicineName =
+      medicine.name;
+
+
+    let newStock = 0;
 
 
     await runTransaction(
@@ -1147,6 +1623,7 @@ async function saveSale() {
             medicineRef
           );
 
+
         if (!medicineSnap.exists()) {
 
           throw new Error(
@@ -1155,13 +1632,21 @@ async function saveSale() {
 
         }
 
+
         const latest =
           medicineSnap.data();
 
-        const currentStock =
-          number(latest.stock);
 
-        if (quantity > currentStock) {
+        const currentStock =
+          number(
+            latest.stock
+          );
+
+
+        if (
+          quantity >
+          currentStock
+        ) {
 
           throw new Error(
             "Not enough stock."
@@ -1169,14 +1654,22 @@ async function saveSale() {
 
         }
 
-        const newStock =
-          currentStock - quantity;
+
+        newStock =
+          currentStock -
+          quantity;
+
+
+        soldMedicineName =
+          latest.name;
 
 
         transaction.update(
           medicineRef,
           {
-            stock: newStock,
+            stock:
+              newStock,
+
             updatedAt:
               serverTimestamp()
           }
@@ -1186,7 +1679,9 @@ async function saveSale() {
         transaction.set(
           saleRef,
           {
+
             medicineId,
+
             medicineName:
               latest.name,
 
@@ -1204,6 +1699,7 @@ async function saveSale() {
 
             createdAt:
               serverTimestamp()
+
           }
         );
 
@@ -1213,24 +1709,24 @@ async function saveSale() {
 
     await addHistory({
 
-      action: "Medicine Sold",
+      action:
+        "Medicine Sold",
 
       medicineId,
 
       medicineName:
-        medicine.name,
+        soldMedicineName,
 
       quantity,
 
       details:
-        `Sale amount ${money(saleAmount)}, profit ${money(saleAmount - costAmount)}.`
+        `Sale ${money(saleAmount)}, Profit ${money(saleAmount - costAmount)}, Remaining Stock ${newStock}.`
 
     });
 
 
     if (
-      number(medicine.stock) -
-      quantity <=
+      newStock <=
       number(
         medicine.minStock ??
         LOW_STOCK_DEFAULT
@@ -1239,16 +1735,16 @@ async function saveSale() {
 
       await addHistory({
 
-        action: "Low Stock",
+        action:
+          "Low Stock",
 
         medicineId,
 
         medicineName:
-          medicine.name,
+          soldMedicineName,
 
         quantity:
-          number(medicine.stock) -
-          quantity,
+          newStock,
 
         details:
           "Medicine stock reached the low-stock level."
@@ -1258,20 +1754,24 @@ async function saveSale() {
     }
 
 
-    PoultryUI.closeModal(
+    window.PoultryUI?.closeModal(
       "saleModal"
-    );
-
-    showToast(
-      "Sale recorded successfully."
     );
 
 
     await loadMedicines();
+
     await loadSales();
+
     await loadHistory();
 
+
     refreshEverything();
+
+
+    showToast(
+      "Sale recorded successfully."
+    );
 
 
   } catch (error) {
@@ -1279,8 +1779,7 @@ async function saveSale() {
     console.error(error);
 
     showToast(
-      error.message ||
-      "Could not record sale."
+      firebaseError(error)
     );
 
   }
@@ -1296,11 +1795,12 @@ async function loadHistory() {
 
   history = [];
 
-  const ref =
-    userCollection("history");
 
   const snapshot =
-    await getDocs(ref);
+    await getDocs(
+      userCollection("history")
+    );
+
 
   snapshot.forEach(item => {
 
@@ -1311,12 +1811,16 @@ async function loadHistory() {
 
   });
 
+
   history.sort(
     (a, b) =>
-      String(b.date || "")
-        .localeCompare(
-          String(a.date || "")
+      String(
+        b.date || ""
+      ).localeCompare(
+        String(
+          a.date || ""
         )
+      )
   );
 
 }
@@ -1325,6 +1829,7 @@ async function loadHistory() {
 async function addHistory(data) {
 
   if (!currentUser) return;
+
 
   try {
 
@@ -1340,6 +1845,7 @@ async function addHistory(data) {
           serverTimestamp()
       }
     );
+
 
   } catch (error) {
 
@@ -1358,7 +1864,9 @@ function renderHistory() {
   const body =
     $("historyTableBody");
 
+
   if (!body) return;
+
 
   if (!history.length) {
 
@@ -1374,38 +1882,49 @@ function renderHistory() {
 
   }
 
-  body.innerHTML =
-    history.map(item => {
 
-      return `
+  body.innerHTML =
+    history.map(
+      item => `
+
         <tr>
 
           <td>
-            ${escapeHTML(item.date || "-")}
+            ${escapeHTML(
+              item.date || "-"
+            )}
           </td>
 
           <td>
             <span class="badge blue">
-              ${escapeHTML(item.action || "-")}
+              ${escapeHTML(
+                item.action || "-"
+              )}
             </span>
           </td>
 
           <td>
-            ${escapeHTML(item.medicineName || "-")}
+            ${escapeHTML(
+              item.medicineName || "-"
+            )}
           </td>
 
           <td>
-            ${number(item.quantity)}
+            ${number(
+              item.quantity
+            )}
           </td>
 
           <td>
-            ${escapeHTML(item.details || "-")}
+            ${escapeHTML(
+              item.details || "-"
+            )}
           </td>
 
         </tr>
-      `;
 
-    }).join("");
+      `
+    ).join("");
 
 }
 
@@ -1419,12 +1938,15 @@ function renderDashboard() {
   const totalMedicines =
     medicines.length;
 
+
   const totalStock =
     medicines.reduce(
       (sum, item) =>
-        sum + number(item.stock),
+        sum +
+        number(item.stock),
       0
     );
+
 
   const low =
     medicines.filter(
@@ -1432,6 +1954,7 @@ function renderDashboard() {
         medicineStatus(item).key ===
         "low"
     ).length;
+
 
   const expiring =
     medicines.filter(
@@ -1446,15 +1969,18 @@ function renderDashboard() {
     totalMedicines
   );
 
+
   setText(
     "totalStock",
     totalStock
   );
 
+
   setText(
     "lowStock",
     low
   );
+
 
   setText(
     "expiringSoon",
@@ -1472,23 +1998,30 @@ function renderDashboardAlerts() {
   const container =
     $("dashboardAlerts");
 
+
   if (!container) return;
+
 
   const alerts =
     medicines
-      .filter(m => {
+      .filter(
+        medicine => {
 
-        const status =
-          medicineStatus(m);
+          const status =
+            medicineStatus(
+              medicine
+            );
 
-        return (
-          status.key === "low" ||
-          status.key === "out" ||
-          status.key === "expired" ||
-          status.key === "expiring"
-        );
 
-      })
+          return (
+            status.key === "low" ||
+            status.key === "out" ||
+            status.key === "expired" ||
+            status.key === "expiring"
+          );
+
+        }
+      )
       .slice(0, 6);
 
 
@@ -1506,38 +2039,54 @@ function renderDashboardAlerts() {
 
 
   container.innerHTML =
-    alerts.map(m => {
+    alerts.map(
+      medicine => {
 
-      const status =
-        medicineStatus(m);
+        const status =
+          medicineStatus(
+            medicine
+          );
 
-      return `
-        <div class="alert-row">
 
-          <span>
-            <strong>
-              ${escapeHTML(m.name)}
-            </strong>
-            <br>
-            <small>
-              Stock: ${number(m.stock)}
-            </small>
-          </span>
+        return `
+          <div class="alert-row">
 
-          <span class="badge ${status.className}">
-            ${status.label}
-          </span>
+            <span>
 
-        </div>
-      `;
+              <strong>
+                ${escapeHTML(
+                  medicine.name
+                )}
+              </strong>
 
-    }).join("");
+              <br>
+
+              <small>
+                Stock:
+                ${number(
+                  medicine.stock
+                )}
+              </small>
+
+            </span>
+
+            <span
+              class="badge ${status.className}"
+            >
+              ${status.label}
+            </span>
+
+          </div>
+        `;
+
+      }
+    ).join("");
 
 }
 
 
 // ============================================================
-// ALERTS PAGE
+// ALERTS
 // ============================================================
 
 function renderAlerts() {
@@ -1545,32 +2094,47 @@ function renderAlerts() {
   const container =
     $("alertsList");
 
+
   if (!container) return;
 
+
   const alerts =
-    medicines.filter(m => {
+    medicines.filter(
+      medicine => {
 
-      const status =
-        medicineStatus(m);
+        const status =
+          medicineStatus(
+            medicine
+          );
 
-      return (
-        status.key === "low" ||
-        status.key === "out" ||
-        status.key === "expired" ||
-        status.key === "expiring"
-      );
 
-    });
+        return (
+          status.key === "low" ||
+          status.key === "out" ||
+          status.key === "expired" ||
+          status.key === "expiring"
+        );
+
+      }
+    );
 
 
   if (!alerts.length) {
 
     container.innerHTML = `
       <div class="empty-state">
-        <div style="font-size:35px;margin-bottom:10px;">
+
+        <div
+          style="
+            font-size:35px;
+            margin-bottom:10px;
+          "
+        >
           ✓
         </div>
+
         No medicine alerts right now.
+
       </div>
     `;
 
@@ -1580,42 +2144,61 @@ function renderAlerts() {
 
 
   container.innerHTML =
-    alerts.map(m => {
+    alerts.map(
+      medicine => {
 
-      const status =
-        medicineStatus(m);
+        const status =
+          medicineStatus(
+            medicine
+          );
 
-      return `
-        <div class="alert-row">
 
-          <div>
+        return `
+          <div class="alert-row">
 
-            <strong>
-              ${escapeHTML(m.name)}
-            </strong>
+            <div>
 
-            <div
-              style="
-                color:#64748b;
-                margin-top:4px;
-                font-size:12px;
-              "
-            >
-              Stock: ${number(m.stock)}
-              ${escapeHTML(m.unit || "")}
-              • Expiry: ${escapeHTML(m.expiry || "-")}
+              <strong>
+                ${escapeHTML(
+                  medicine.name
+                )}
+              </strong>
+
+              <div
+                style="
+                  color:#64748b;
+                  margin-top:4px;
+                  font-size:12px;
+                "
+              >
+                Stock:
+                ${number(
+                  medicine.stock
+                )}
+                ${escapeHTML(
+                  medicine.unit || ""
+                )}
+
+                • Expiry:
+                ${escapeHTML(
+                  medicine.expiry || "-"
+                )}
+
+              </div>
+
             </div>
 
+            <span
+              class="badge ${status.className}"
+            >
+              ${status.label}
+            </span>
+
           </div>
+        `;
 
-          <span class="badge ${status.className}">
-            ${status.label}
-          </span>
-
-        </div>
-      `;
-
-    }).join("");
+      }
+    ).join("");
 
 }
 
@@ -1628,14 +2211,23 @@ function getDateObject(dateString) {
 
   if (!dateString) return null;
 
+
   const date =
-    new Date(dateString);
+    new Date(
+      dateString + "T00:00:00"
+    );
+
 
   if (
     Number.isNaN(
       date.getTime()
     )
-  ) return null;
+  ) {
+
+    return null;
+
+  }
+
 
   return date;
 
@@ -1644,8 +2236,10 @@ function getDateObject(dateString) {
 
 function isToday(dateString) {
 
-  return dateString ===
-    todayString();
+  return (
+    dateString ===
+    todayString()
+  );
 
 }
 
@@ -1653,30 +2247,45 @@ function isToday(dateString) {
 function isThisWeek(dateString) {
 
   const date =
-    getDateObject(dateString);
+    getDateObject(
+      dateString
+    );
+
 
   if (!date) return false;
+
 
   const now =
     new Date();
 
+
   const day =
     now.getDay();
 
+
   const mondayOffset =
-    day === 0 ? 6 : day - 1;
+    day === 0
+      ? 6
+      : day - 1;
+
 
   const monday =
     new Date(now);
+
 
   monday.setDate(
     now.getDate() -
     mondayOffset
   );
 
+
   monday.setHours(
-    0, 0, 0, 0
+    0,
+    0,
+    0,
+    0
   );
+
 
   return date >= monday;
 
@@ -1686,16 +2295,22 @@ function isThisWeek(dateString) {
 function isThisMonth(dateString) {
 
   const date =
-    getDateObject(dateString);
+    getDateObject(
+      dateString
+    );
+
 
   if (!date) return false;
+
 
   const now =
     new Date();
 
+
   return (
     date.getFullYear() ===
       now.getFullYear() &&
+
     date.getMonth() ===
       now.getMonth()
   );
@@ -1706,12 +2321,18 @@ function isThisMonth(dateString) {
 function calculateProfit(filterFn) {
 
   return sales
-    .filter(sale =>
-      filterFn(sale.saleDate)
+    .filter(
+      sale =>
+        filterFn(
+          sale.saleDate
+        )
     )
     .reduce(
       (sum, sale) =>
-        sum + number(sale.profit),
+        sum +
+        number(
+          sale.profit
+        ),
       0
     );
 
@@ -1721,19 +2342,30 @@ function calculateProfit(filterFn) {
 function renderProfit() {
 
   const todayProfit =
-    calculateProfit(isToday);
+    calculateProfit(
+      isToday
+    );
+
 
   const weekProfit =
-    calculateProfit(isThisWeek);
+    calculateProfit(
+      isThisWeek
+    );
+
 
   const monthProfit =
-    calculateProfit(isThisMonth);
+    calculateProfit(
+      isThisMonth
+    );
 
 
   const totalProfit =
     sales.reduce(
       (sum, sale) =>
-        sum + number(sale.profit),
+        sum +
+        number(
+          sale.profit
+        ),
       0
     );
 
@@ -1741,7 +2373,10 @@ function renderProfit() {
   const revenue =
     sales.reduce(
       (sum, sale) =>
-        sum + number(sale.saleAmount),
+        sum +
+        number(
+          sale.saleAmount
+        ),
       0
     );
 
@@ -1749,7 +2384,10 @@ function renderProfit() {
   const quantity =
     sales.reduce(
       (sum, sale) =>
-        sum + number(sale.quantity),
+        sum +
+        number(
+          sale.quantity
+        ),
       0
     );
 
@@ -1759,30 +2397,36 @@ function renderProfit() {
     money(todayProfit)
   );
 
+
   setText(
     "weekProfit",
     money(weekProfit)
   );
+
 
   setText(
     "monthProfit",
     money(monthProfit)
   );
 
+
   setText(
     "totalSalesCount",
     sales.length
   );
+
 
   setText(
     "totalQuantitySold",
     quantity
   );
 
+
   setText(
     "totalRevenue",
     money(revenue)
   );
+
 
   setText(
     "totalProfit",
@@ -1801,10 +2445,12 @@ function renderSales() {
   const body =
     $("salesTableBody");
 
+
   if (!body) return;
 
+
   const search =
-    (
+    String(
       $("salesSearch")?.value ||
       ""
     )
@@ -1819,12 +2465,13 @@ function renderSales() {
   if (search) {
 
     list =
-      list.filter(sale =>
-        String(
-          sale.medicineName || ""
-        )
-          .toLowerCase()
-          .includes(search)
+      list.filter(
+        sale =>
+          String(
+            sale.medicineName || ""
+          )
+            .toLowerCase()
+            .includes(search)
       );
 
   }
@@ -1846,9 +2493,9 @@ function renderSales() {
 
 
   body.innerHTML =
-    list.map(sale => {
+    list.map(
+      sale => `
 
-      return `
         <tr>
 
           <td>
@@ -1866,33 +2513,41 @@ function renderSales() {
           </td>
 
           <td>
-            ${number(sale.quantity)}
+            ${number(
+              sale.quantity
+            )}
           </td>
 
           <td>
-            ${money(sale.saleAmount)}
+            ${money(
+              sale.saleAmount
+            )}
           </td>
 
           <td>
-            ${money(sale.costAmount)}
+            ${money(
+              sale.costAmount
+            )}
           </td>
 
           <td>
             <strong>
-              ${money(sale.profit)}
+              ${money(
+                sale.profit
+              )}
             </strong>
           </td>
 
         </tr>
-      `;
 
-    }).join("");
+      `
+    ).join("");
 
 }
 
 
 // ============================================================
-// REFRESH UI
+// REFRESH EVERYTHING
 // ============================================================
 
 function refreshEverything() {
@@ -1922,8 +2577,10 @@ window.addEventListener(
   "poultry:login",
   event => {
 
-    loginUser(
-      event.detail
+    registerSafeCall(
+      loginUser(
+        event.detail
+      )
     );
 
   }
@@ -1934,8 +2591,10 @@ window.addEventListener(
   "poultry:register",
   event => {
 
-    registerUser(
-      event.detail
+    registerSafeCall(
+      registerUser(
+        event.detail
+      )
     );
 
   }
@@ -1946,8 +2605,10 @@ window.addEventListener(
   "poultry:forgot-password",
   event => {
 
-    resetPassword(
-      event.detail.email
+    registerSafeCall(
+      resetPassword(
+        event.detail?.email
+      )
     );
 
   }
@@ -1958,7 +2619,9 @@ window.addEventListener(
   "poultry:logout",
   () => {
 
-    logoutUser();
+    registerSafeCall(
+      logoutUser()
+    );
 
   }
 );
@@ -1968,7 +2631,9 @@ window.addEventListener(
   "poultry:save-medicine",
   () => {
 
-    saveMedicine();
+    registerSafeCall(
+      saveMedicine()
+    );
 
   }
 );
@@ -1978,7 +2643,9 @@ window.addEventListener(
   "poultry:save-sale",
   () => {
 
-    saveSale();
+    registerSafeCall(
+      saveSale()
+    );
 
   }
 );
@@ -1986,58 +2653,702 @@ window.addEventListener(
 
 window.addEventListener(
   "poultry:refresh",
-  async () => {
+  () => {
 
-    await loadAllData();
-
-    showToast(
-      "Data refreshed."
+    registerSafeCall(
+      refreshData()
     );
 
   }
 );
 
 
-// ============================================================
-// SEARCH / FILTER
-// ============================================================
+async function registerSafeCall(promise) {
 
-$("medicineSearch")?.addEventListener(
-  "input",
-  renderMedicines
-);
+  try {
 
+    await promise;
 
-$("medicineFilter")?.addEventListener(
-  "change",
-  renderMedicines
-);
+  } catch (error) {
 
+    console.error(
+      "Unhandled application error:",
+      error
+    );
 
-$("salesSearch")?.addEventListener(
-  "input",
-  renderSales
-);
+    showToast(
+      firebaseError(error)
+    );
 
-
-// ============================================================
-// STARTUP
-// ============================================================
-
-if ($("medicineStockDate")) {
-
-  $("medicineStockDate").value =
-    todayString();
+  }
 
 }
 
-if ($("saleDate")) {
 
-  $("saleDate").value =
-    todayString();
+// ============================================================
+// REFRESH DATA
+// ============================================================
+
+async function refreshData() {
+
+  if (!currentUser) {
+
+    showToast(
+      "Please login first."
+    );
+
+    return;
+
+  }
+
+
+  showToast(
+    "Refreshing data..."
+  );
+
+
+  await loadAllData();
+
+
+  showToast(
+    "Data refreshed."
+  );
 
 }
+
+
+// ============================================================
+// STARTUP EVENTS
+// ============================================================
+
+function setupEvents() {
+
+
+  // ---------------- AUTH SWITCH ----------------
+
+  $("showRegisterBtn")?.addEventListener(
+    "click",
+    () => {
+
+      $("loginForm")?.classList.add(
+        "hidden"
+      );
+
+      $("registerForm")?.classList.remove(
+        "hidden"
+      );
+
+      $("loginSwitchText")?.classList.add(
+        "hidden"
+      );
+
+      $("registerSwitchText")?.classList.remove(
+        "hidden"
+      );
+
+    }
+  );
+
+
+  $("showLoginBtn")?.addEventListener(
+    "click",
+    () => {
+
+      $("registerForm")?.classList.add(
+        "hidden"
+      );
+
+      $("loginForm")?.classList.remove(
+        "hidden"
+      );
+
+      $("registerSwitchText")?.classList.add(
+        "hidden"
+      );
+
+      $("loginSwitchText")?.classList.remove(
+        "hidden"
+      );
+
+    }
+  );
+
+
+  // ---------------- AUTH FORMS ----------------
+
+  $("loginForm")?.addEventListener(
+    "submit",
+    event => {
+
+      event.preventDefault();
+
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "poultry:login",
+          {
+            detail: {
+
+              email:
+                $("loginEmail")?.value.trim(),
+
+              password:
+                $("loginPassword")?.value || ""
+
+            }
+          }
+        )
+      );
+
+    }
+  );
+
+
+  $("registerForm")?.addEventListener(
+    "submit",
+    event => {
+
+      event.preventDefault();
+
+
+      const password =
+        $("registerPassword")?.value || "";
+
+
+      const confirm =
+        $("registerConfirmPassword")?.value || "";
+
+
+      if (
+        password !== confirm
+      ) {
+
+        showToast(
+          "Passwords do not match."
+        );
+
+        return;
+
+      }
+
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "poultry:register",
+          {
+            detail: {
+
+              name:
+                $("registerName")?.value.trim(),
+
+              email:
+                $("registerEmail")?.value.trim(),
+
+              password
+
+            }
+          }
+        )
+      );
+
+    }
+  );
+
+
+  $("forgotPasswordBtn")?.addEventListener(
+    "click",
+    () => {
+
+      const email =
+        $("loginEmail")?.value.trim();
+
+
+      if (!email) {
+
+        showToast(
+          "Enter your email address first."
+        );
+
+        $("loginEmail")?.focus();
+
+        return;
+
+      }
+
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "poultry:forgot-password",
+          {
+            detail: {
+              email
+            }
+          }
+        )
+      );
+
+    }
+  );
+
+
+  // ---------------- LOGOUT ----------------
+
+  $("logoutBtn")?.addEventListener(
+    "click",
+    () => {
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "poultry:logout"
+        )
+      );
+
+    }
+  );
+
+
+  // ---------------- SIDEBAR ----------------
+
+  $("menuBtn")?.addEventListener(
+    "click",
+    () => {
+
+      $("sidebar")?.classList.toggle(
+        "open"
+      );
+
+    }
+  );
+
+
+  document
+    .querySelectorAll(".nav-item")
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            const pageId =
+              button.dataset.page;
+
+
+            document
+              .querySelectorAll(".nav-item")
+              .forEach(
+                item =>
+                  item.classList.remove(
+                    "active"
+                  )
+              );
+
+
+            button.classList.add(
+              "active"
+            );
+
+
+            document
+              .querySelectorAll(".page")
+              .forEach(
+                page =>
+                  page.classList.remove(
+                    "active"
+                  )
+              );
+
+
+            $(pageId)?.classList.add(
+              "active"
+            );
+
+
+            $("sidebar")?.classList.remove(
+              "open"
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  // ---------------- QUICK NAVIGATION ----------------
+
+  document
+    .querySelectorAll("[data-open-page]")
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            const pageId =
+              button.dataset.openPage;
+
+
+            document
+              .querySelectorAll(".nav-item")
+              .forEach(
+                item => {
+
+                  item.classList.toggle(
+                    "active",
+                    item.dataset.page ===
+                    pageId
+                  );
+
+                }
+              );
+
+
+            document
+              .querySelectorAll(".page")
+              .forEach(
+                page =>
+                  page.classList.remove(
+                    "active"
+                  )
+              );
+
+
+            $(pageId)?.classList.add(
+              "active"
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  // ---------------- MODALS ----------------
+
+  document
+    .querySelectorAll("[data-close-modal]")
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            window.PoultryUI?.closeModal(
+              button.dataset.closeModal
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  document
+    .querySelectorAll(".modal-overlay")
+    .forEach(
+      overlay => {
+
+        overlay.addEventListener(
+          "click",
+          event => {
+
+            if (
+              event.target === overlay
+            ) {
+
+              overlay.classList.add(
+                "hidden"
+              );
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+
+  // ---------------- ADD MEDICINE ----------------
+
+  $("addMedicineBtn")?.addEventListener(
+    "click",
+    () => {
+
+      setText(
+        "medicineModalTitle",
+        "Add Medicine"
+      );
+
+
+      $("medicineForm")?.reset();
+
+
+      if ($("medicineId"))
+        $("medicineId").value = "";
+
+
+      if ($("medicineMinStock"))
+        $("medicineMinStock").value =
+          LOW_STOCK_DEFAULT;
+
+
+      if ($("medicineStockDate"))
+        $("medicineStockDate").value =
+          todayString();
+
+
+      window.PoultryUI?.openModal(
+        "medicineModal"
+      );
+
+    }
+  );
+
+
+  $("quickAddMedicine")?.addEventListener(
+    "click",
+    () => {
+
+      $("addMedicineBtn")?.click();
+
+    }
+  );
+
+
+  // ---------------- SALE ----------------
+
+  $("recordSaleBtn")?.addEventListener(
+    "click",
+    () => {
+
+      $("saleForm")?.reset();
+
+
+      if ($("saleDate"))
+        $("saleDate").value =
+          todayString();
+
+
+      populateSaleMedicines();
+
+      updateSalePreview();
+
+
+      window.PoultryUI?.openModal(
+        "saleModal"
+      );
+
+    }
+  );
+
+
+  $("quickSale")?.addEventListener(
+    "click",
+    () => {
+
+      $("recordSaleBtn")?.click();
+
+    }
+  );
+
+
+  // ---------------- SALE CALCULATION ----------------
+
+  $("saleMedicine")?.addEventListener(
+    "change",
+    updateSaleValues
+  );
+
+
+  $("saleQuantity")?.addEventListener(
+    "input",
+    updateSaleValues
+  );
+
+
+  $("saleAmount")?.addEventListener(
+    "input",
+    updateSalePreview
+  );
+
+
+  $("saleCost")?.addEventListener(
+    "input",
+    updateSalePreview
+  );
+
+
+  // ---------------- FORMS ----------------
+
+  $("medicineForm")?.addEventListener(
+    "submit",
+    event => {
+
+      event.preventDefault();
+
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "poultry:save-medicine"
+        )
+      );
+
+    }
+  );
+
+
+  $("saleForm")?.addEventListener(
+    "submit",
+    event => {
+
+      event.preventDefault();
+
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "poultry:save-sale"
+        )
+      );
+
+    }
+  );
+
+
+  // ---------------- SEARCH ----------------
+
+  $("medicineSearch")?.addEventListener(
+    "input",
+    renderMedicines
+  );
+
+
+  $("medicineFilter")?.addEventListener(
+    "change",
+    renderMedicines
+  );
+
+
+  $("salesSearch")?.addEventListener(
+    "input",
+    renderSales
+  );
+
+
+  // ---------------- REFRESH ----------------
+
+  $("refreshBtn")?.addEventListener(
+    "click",
+    () => {
+
+      window.dispatchEvent(
+        new CustomEvent(
+          "poultry:refresh"
+        )
+      );
+
+    }
+  );
+
+
+  // ---------------- ESCAPE ----------------
+
+  document.addEventListener(
+    "keydown",
+    event => {
+
+      if (
+        event.key === "Escape"
+      ) {
+
+        document
+          .querySelectorAll(
+            ".modal-overlay"
+          )
+          .forEach(
+            modal =>
+              modal.classList.add(
+                "hidden"
+              )
+          );
+
+      }
+
+    }
+  );
+
+
+  // ---------------- GLOBAL UI ----------------
+
+  window.PoultryUI = {
+
+    showApp() {
+
+      $("authScreen")?.classList.add(
+        "hidden"
+      );
+
+      $("appScreen")?.classList.remove(
+        "hidden"
+      );
+
+    },
+
+
+    showAuth() {
+
+      $("appScreen")?.classList.add(
+        "hidden"
+      );
+
+      $("authScreen")?.classList.remove(
+        "hidden"
+      );
+
+    },
+
+
+    openModal(id) {
+
+      $(id)?.classList.remove(
+        "hidden"
+      );
+
+    },
+
+
+    closeModal(id) {
+
+      $(id)?.classList.add(
+        "hidden"
+      );
+
+    },
+
+
+    showToast,
+
+
+    setText
+
+  };
+
+
+}
+
+
+// ============================================================
+// START APPLICATION
+// ============================================================
+
+setupEvents();
+
 
 console.log(
-  "Poultry Medicine Manager v1.0.2 loaded."
+  "Poultry Medicine Manager v1.0.3 loaded successfully."
 );
