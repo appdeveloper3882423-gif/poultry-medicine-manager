@@ -32,7 +32,7 @@ import {
 ========================================================= */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCkyj91DkxfyFq3ErGucMykxB6h0trplM",
+  apiKey: "AIzaSyCkyj91iDkxfyFq3ErGucMykxB6h0trplM",
   authDomain: "poultry-medicine-manager-93b79.firebaseapp.com",
   projectId: "poultry-medicine-manager-93b79",
   storageBucket: "poultry-medicine-manager-93b79.firebasestorage.app",
