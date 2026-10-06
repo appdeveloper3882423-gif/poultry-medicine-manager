@@ -3,2382 +3,667 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#2563eb">
   <title>Poultry Medicine Manager</title>
-
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      background: #f5f7fb;
-      color: #172033;
-      min-height: 100vh;
-    }
-
-    button,
-    input,
-    select {
-      font: inherit;
-    }
-
-    button {
-      cursor: pointer;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    /* ================= AUTH ================= */
-
-    #authScreen {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      background:
-        radial-gradient(circle at top left, #dbeafe, transparent 35%),
-        radial-gradient(circle at bottom right, #e0e7ff, transparent 35%),
-        #f8fafc;
-    }
-
-    .auth-card {
-      width: 100%;
-      max-width: 440px;
-      background: white;
-      border-radius: 24px;
-      padding: 34px;
-      box-shadow: 0 20px 60px rgba(15, 23, 42, .12);
-    }
-
-    .brand {
-      text-align: center;
-      margin-bottom: 28px;
-    }
-
-    .brand-icon {
-      width: 70px;
-      height: 70px;
-      margin: auto;
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #2563eb, #4f46e5);
-      color: white;
-      font-size: 34px;
-      box-shadow: 0 12px 25px rgba(37, 99, 235, .25);
-    }
-
-    .brand h1 {
-      margin-top: 15px;
-      font-size: 25px;
-    }
-
-    .brand p {
-      color: #64748b;
-      margin-top: 6px;
-      font-size: 14px;
-    }
-
-    .form-group {
-      margin-bottom: 16px;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 7px;
-      font-size: 13px;
-      font-weight: 700;
-      color: #334155;
-    }
-
-    .form-control {
-      width: 100%;
-      border: 1px solid #dbe2ea;
-      border-radius: 12px;
-      padding: 13px 14px;
-      outline: none;
-      background: #fff;
-      transition: .2s;
-    }
-
-    .form-control:focus {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
-    }
-
-    .primary-btn {
-      width: 100%;
-      border: 0;
-      border-radius: 12px;
-      padding: 14px;
-      color: white;
-      background: linear-gradient(135deg, #2563eb, #4f46e5);
-      font-weight: 700;
-      transition: .2s;
-    }
-
-    .primary-btn:hover {
-      transform: translateY(-1px);
-    }
-
-    .auth-switch {
-      text-align: center;
-      margin-top: 20px;
-      color: #64748b;
-      font-size: 14px;
-    }
-
-    .auth-switch button {
-      border: 0;
-      background: transparent;
-      color: #2563eb;
-      font-weight: 700;
-    }
-
-    .forgot-btn {
-      float: right;
-      border: 0;
-      background: transparent;
-      color: #2563eb;
-      font-size: 12px;
-    }
-
-    /* ================= APP ================= */
-
-    #appScreen {
-      min-height: 100vh;
-    }
-
-    .topbar {
-      height: 70px;
-      background: white;
-      border-bottom: 1px solid #e5eaf0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 24px;
-      position: sticky;
-      top: 0;
-      z-index: 20;
-    }
-
-    .topbar-left {
-      display: flex;
-      align-items: center;
-      gap: 13px;
-    }
-
-    .menu-btn {
-      width: 42px;
-      height: 42px;
-      border: 0;
-      border-radius: 12px;
-      background: #f1f5f9;
-      font-size: 21px;
-    }
-
-    .top-title {
-      font-size: 20px;
-      font-weight: 800;
-    }
-
-    .top-actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    .icon-btn {
-      width: 42px;
-      height: 42px;
-      border: 0;
-      border-radius: 12px;
-      background: #f1f5f9;
-    }
-
-    .layout {
-      display: flex;
-      min-height: calc(100vh - 70px);
-    }
-
-    .sidebar {
-      width: 245px;
-      background: #111827;
-      color: white;
-      padding: 20px 14px;
-      flex-shrink: 0;
-      transition: .25s;
-    }
-
-    .sidebar-brand {
-      padding: 10px 12px 22px;
-      font-weight: 800;
-      font-size: 17px;
-    }
-
-    .nav-item {
-      width: 100%;
-      border: 0;
-      background: transparent;
-      color: #cbd5e1;
-      padding: 13px 14px;
-      border-radius: 11px;
-      text-align: left;
-      margin-bottom: 5px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .nav-item:hover,
-    .nav-item.active {
-      background: #1e40af;
-      color: white;
-    }
-
-    .main {
-      flex: 1;
-      padding: 25px;
-      min-width: 0;
-    }
-
-    .page {
-      display: none;
-    }
-
-    .page.active {
-      display: block;
-    }
-
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 15px;
-      margin-bottom: 22px;
-      flex-wrap: wrap;
-    }
-
-    .page-header h2 {
-      font-size: 24px;
-    }
-
-    .page-header p {
-      color: #64748b;
-      margin-top: 5px;
-      font-size: 14px;
-    }
-
-    .action-btn {
-      border: 0;
-      padding: 11px 16px;
-      border-radius: 10px;
-      color: white;
-      background: #2563eb;
-      font-weight: 700;
-    }
-
-    /* ================= DASHBOARD ================= */
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 17px;
-      margin-bottom: 24px;
-    }
-
-    .stat-card {
-      background: white;
-      border: 1px solid #e8edf3;
-      border-radius: 17px;
-      padding: 20px;
-      box-shadow: 0 5px 18px rgba(15, 23, 42, .04);
-    }
-
-    .stat-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .stat-icon {
-      width: 43px;
-      height: 43px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #eff6ff;
-      font-size: 20px;
-    }
-
-    .stat-label {
-      color: #64748b;
-      font-size: 13px;
-      margin-top: 17px;
-    }
-
-    .stat-value {
-      font-size: 27px;
-      font-weight: 800;
-      margin-top: 4px;
-    }
-
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr;
-      gap: 20px;
-    }
-
-    .panel {
-      background: white;
-      border: 1px solid #e8edf3;
-      border-radius: 17px;
-      padding: 20px;
-      box-shadow: 0 5px 18px rgba(15, 23, 42, .04);
-    }
-
-    .panel-title {
-      font-size: 17px;
-      font-weight: 800;
-      margin-bottom: 17px;
-    }
-
-    .quick-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-
-    .quick-btn {
-      border: 1px solid #e2e8f0;
-      background: #f8fafc;
-      border-radius: 13px;
-      padding: 18px 12px;
-      text-align: left;
-      font-weight: 700;
-    }
-
-    .quick-btn span {
-      display: block;
-      font-size: 22px;
-      margin-bottom: 8px;
-    }
-
-    .alert-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid #eef2f7;
-      font-size: 14px;
-    }
-
-    .alert-row:last-child {
-      border-bottom: 0;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 5px 9px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .badge.green {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .badge.orange {
-      background: #ffedd5;
-      color: #9a3412;
-    }
-
-    .badge.red {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .badge.blue {
-      background: #dbeafe;
-      color: #1d4ed8;
-    }
-
-    /* ================= TABLE ================= */
-
-    .table-panel {
-      background: white;
-      border: 1px solid #e8edf3;
-      border-radius: 17px;
-      overflow: hidden;
-    }
-
-    .table-toolbar {
-      padding: 17px;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      border-bottom: 1px solid #edf1f5;
-    }
-
-    .search-input {
-      flex: 1;
-      min-width: 180px;
-      border: 1px solid #dbe2ea;
-      padding: 11px 13px;
-      border-radius: 10px;
-      outline: none;
-    }
-
-    .filter-select {
-      border: 1px solid #dbe2ea;
-      padding: 11px 13px;
-      border-radius: 10px;
-      background: white;
-      outline: none;
-    }
-
-    .table-wrap {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 750px;
-    }
-
-    th,
-    td {
-      padding: 14px 15px;
-      text-align: left;
-      border-bottom: 1px solid #edf1f5;
-      font-size: 13px;
-      white-space: nowrap;
-    }
-
-    th {
-      color: #64748b;
-      background: #f8fafc;
-      font-size: 12px;
-    }
-
-    td {
-      color: #334155;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 45px 20px;
-      color: #64748b;
-    }
-
-    /* ================= PROFIT ================= */
-
-    .profit-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 17px;
-      margin-bottom: 20px;
-    }
-
-    .profit-card {
-      padding: 22px;
-      border-radius: 17px;
-      background: white;
-      border: 1px solid #e8edf3;
-    }
-
-    .profit-card h3 {
-      font-size: 14px;
-      color: #64748b;
-    }
-
-    .profit-card strong {
-      display: block;
-      margin-top: 8px;
-      font-size: 27px;
-    }
-
-    /* ================= MODAL ================= */
-
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, .55);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 18px;
-      z-index: 100;
-    }
-
-    .modal {
-      width: 100%;
-      max-width: 550px;
-      max-height: 92vh;
-      overflow-y: auto;
-      background: white;
-      border-radius: 20px;
-      padding: 24px;
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .close-btn {
-      border: 0;
-      background: #f1f5f9;
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      font-size: 20px;
-    }
-
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-
-    .form-full {
-      grid-column: 1 / -1;
-    }
-
-    .modal-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-    }
-
-    .secondary-btn {
-      flex: 1;
-      border: 1px solid #dbe2ea;
-      background: white;
-      padding: 12px;
-      border-radius: 10px;
-      font-weight: 700;
-    }
-
-    .modal-actions .action-btn {
-      flex: 1;
-    }
-
-    /* ================= PROFILE ================= */
-
-    .profile-card {
-      max-width: 650px;
-      background: white;
-      border-radius: 18px;
-      padding: 25px;
-      border: 1px solid #e8edf3;
-    }
-
-    .profile-avatar {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #2563eb, #4f46e5);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      font-weight: 800;
-      margin-bottom: 15px;
-    }
-
-    .profile-info {
-      margin-top: 20px;
-    }
-
-    .profile-line {
-      display: flex;
-      justify-content: space-between;
-      gap: 20px;
-      padding: 14px 0;
-      border-bottom: 1px solid #edf1f5;
-      font-size: 14px;
-    }
-
-    .profile-line span:first-child {
-      color: #64748b;
-    }
-
-    /* ================= TOAST ================= */
-
-    #toastContainer {
-      position: fixed;
-      right: 18px;
-      bottom: 18px;
-      z-index: 300;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .toast {
-      background: #111827;
-      color: white;
-      padding: 13px 16px;
-      border-radius: 11px;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
-      font-size: 13px;
-      max-width: 320px;
-      animation: toastIn .2s ease;
-    }
-
-    @keyframes toastIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    /* ================= MOBILE ================= */
-
-    @media (max-width: 950px) {
-      .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .dashboard-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .profit-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 700px) {
-      .topbar {
-        padding: 0 14px;
-      }
-
-      .top-title {
-        font-size: 17px;
-      }
-
-      .sidebar {
-        position: fixed;
-        top: 70px;
-        bottom: 0;
-        left: -260px;
-        z-index: 50;
-        box-shadow: 10px 0 30px rgba(0, 0, 0, .15);
-      }
-
-      .sidebar.open {
-        left: 0;
-      }
-
-      .main {
-        padding: 17px;
-      }
-
-      .stats-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-      }
-
-      .stat-card {
-        padding: 15px;
-      }
-
-      .stat-value {
-        font-size: 22px;
-      }
-
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .form-full {
-        grid-column: auto;
-      }
-    }
-
-    @media (max-width: 430px) {
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .quick-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .auth-card {
-        padding: 25px 19px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
 
-  <!-- ========================================================
-       AUTH SCREEN
-  ========================================================= -->
+<div id="toast"></div>
 
-  <section id="authScreen">
+<!-- ================= LOGIN / SIGNUP ================= -->
+<section id="authView" class="auth-page">
 
-    <div class="auth-card">
+  <div class="auth-card">
 
-      <div class="brand">
-        <div class="brand-icon">🐔</div>
-        <h1>Poultry Medicine Manager</h1>
-        <p>Manage medicines, stock, sales and profit</p>
+    <div class="logo big">
+      <span>🐔</span>
+      <div>
+        <b>Poultry Medicine</b>
+        <small>Management System</small>
+      </div>
+    </div>
+
+    <p class="subtitle">
+      Stock • Sales • Purchases • Profit • Expiry
+    </p>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-auth="login">Login</button>
+      <button class="auth-tab" data-auth="signup">Create Account</button>
+    </div>
+
+    <form id="authForm">
+
+      <label>Email</label>
+      <input
+        id="authEmail"
+        type="email"
+        placeholder="Enter email"
+        required
+      >
+
+      <label>Password</label>
+      <input
+        id="authPassword"
+        type="password"
+        placeholder="Enter password"
+        minlength="6"
+        required
+      >
+
+      <div id="confirmPasswordBox" class="hidden">
+        <label>Confirm Password</label>
+        <input
+          id="authConfirm"
+          type="password"
+          minlength="6"
+          placeholder="Confirm password"
+        >
       </div>
 
-      <!-- LOGIN -->
+      <button class="primary full" id="authButton">
+        Login
+      </button>
 
-      <form id="loginForm">
+    </form>
 
-        <div class="form-group">
-          <label>Email Address</label>
-          <input
-            id="loginEmail"
-            class="form-control"
-            type="email"
-            placeholder="Enter your email"
-            required
-          >
-        </div>
+    <p id="authError" class="error"></p>
 
-        <div class="form-group">
-          <label>
-            Password
-            <button
-              type="button"
-              class="forgot-btn"
-              id="forgotPasswordBtn"
-            >
-              Forgot password?
-            </button>
-          </label>
+    <div class="secure-note">
+      🔐 Your data is securely separated by your account.
+    </div>
 
-          <input
-            id="loginPassword"
-            class="form-control"
-            type="password"
-            placeholder="Enter your password"
-            required
-          >
-        </div>
+  </div>
 
-        <button class="primary-btn" type="submit">
-          Login
-        </button>
+</section>
 
-      </form>
 
-      <!-- REGISTER -->
+<!-- ================= MAIN APPLICATION ================= -->
 
-      <form id="registerForm" class="hidden">
+<section id="appView" class="app hidden">
 
-        <div class="form-group">
-          <label>Full Name</label>
-          <input
-            id="registerName"
-            class="form-control"
-            type="text"
-            placeholder="Enter your name"
-            required
-          >
-        </div>
+  <!-- SIDEBAR -->
 
-        <div class="form-group">
-          <label>Email Address</label>
-          <input
-            id="registerEmail"
-            class="form-control"
-            type="email"
-            placeholder="Enter your email"
-            required
-          >
-        </div>
+  <aside class="sidebar" id="sidebar">
 
-        <div class="form-group">
-          <label>Password</label>
-          <input
-            id="registerPassword"
-            class="form-control"
-            type="password"
-            placeholder="Minimum 6 characters"
-            minlength="6"
-            required
-          >
-        </div>
-
-        <div class="form-group">
-          <label>Confirm Password</label>
-          <input
-            id="registerConfirmPassword"
-            class="form-control"
-            type="password"
-            placeholder="Confirm password"
-            minlength="6"
-            required
-          >
-        </div>
-
-        <button class="primary-btn" type="submit">
-          Create Account
-        </button>
-
-      </form>
-
-      <div class="auth-switch">
-
-        <span id="loginSwitchText">
-          Don't have an account?
-          <button type="button" id="showRegisterBtn">
-            Create Account
-          </button>
-        </span>
-
-        <span id="registerSwitchText" class="hidden">
-          Already have an account?
-          <button type="button" id="showLoginBtn">
-            Login
-          </button>
-        </span>
-
+    <div class="logo sidebar-logo">
+      <span>🐔</span>
+      <div>
+        <b>Poultry Medicine</b>
+        <small>Manager</small>
       </div>
+    </div>
+
+    <nav>
+
+      <button class="nav active" data-page="dashboard">
+        🏠 Dashboard
+      </button>
+
+      <button class="nav" data-page="stock">
+        💊 Stock
+      </button>
+
+      <button class="nav" data-page="purchases">
+        🛒 Purchases
+      </button>
+
+      <button class="nav" data-page="sales">
+        💰 Sales
+      </button>
+
+      <button class="nav" data-page="customers">
+        👥 Customers
+      </button>
+
+      <button class="nav" data-page="suppliers">
+        🏭 Suppliers
+      </button>
+
+      <button class="nav" data-page="expiry">
+        ⏰ Expiry
+      </button>
+
+      <button class="nav" data-page="reports">
+        📊 Reports
+      </button>
+
+      <button class="nav" data-page="history">
+        📜 History
+      </button>
+
+      <button class="nav" data-page="settings">
+        ⚙️ Settings
+      </button>
+
+    </nav>
+
+    <div class="sidebar-bottom">
+
+      <div id="loggedUser" class="logged-user"></div>
+
+      <button id="logoutButton" class="logout">
+        ↪ Logout
+      </button>
 
     </div>
 
-  </section>
+  </aside>
 
 
-  <!-- ========================================================
-       APP SCREEN
-  ========================================================= -->
+  <!-- MAIN -->
 
-  <section id="appScreen" class="hidden">
-
-    <!-- TOP BAR -->
+  <main class="main">
 
     <header class="topbar">
 
-      <div class="topbar-left">
+      <button id="menuButton" class="menu-button">
+        ☰
+      </button>
 
-        <button
-          class="menu-btn"
-          id="menuBtn"
-          type="button"
-        >
-          ☰
-        </button>
-
-        <div class="top-title">
-          Poultry Medicine Manager
-        </div>
-
+      <div>
+        <h1 id="pageTitle">Dashboard</h1>
+        <p id="pageSubtitle">Business overview</p>
       </div>
 
       <div class="top-actions">
 
-        <button
-          class="icon-btn"
-          id="refreshBtn"
-          title="Refresh"
-          type="button"
-        >
-          ↻
+        <button class="notification-button" id="notificationButton">
+          🔔
+          <span id="alertCount">0</span>
         </button>
 
-        <button
-          class="icon-btn"
-          id="logoutBtn"
-          title="Logout"
-          type="button"
-        >
-          ⇥
-        </button>
+        <div class="avatar" id="avatar">
+          U
+        </div>
 
       </div>
 
     </header>
 
 
-    <div class="layout">
+    <!-- ================= DASHBOARD ================= -->
 
-      <!-- SIDEBAR -->
+    <section id="page-dashboard" class="page active-page">
 
-      <aside class="sidebar" id="sidebar">
+      <div class="stat-grid">
 
-        <div class="sidebar-brand">
-          🐔 Medicine Manager
+        <div class="stat-card">
+          <span>💊 Total Stock</span>
+          <strong id="dashboardStock">0</strong>
+          <small id="dashboardStockValue">Value Rs. 0</small>
         </div>
 
-        <button
-          class="nav-item active"
-          data-page="dashboardPage"
-          type="button"
-        >
-          📊 Dashboard
-        </button>
-
-        <button
-          class="nav-item"
-          data-page="medicinesPage"
-          type="button"
-        >
-          💊 Medicines
-        </button>
-
-        <button
-          class="nav-item"
-          data-page="salesPage"
-          type="button"
-        >
-          🧾 Sales
-        </button>
-
-        <button
-          class="nav-item"
-          data-page="profitPage"
-          type="button"
-        >
-          💰 Profit
-        </button>
-
-        <button
-          class="nav-item"
-          data-page="historyPage"
-          type="button"
-        >
-          🕘 History
-        </button>
-
-        <button
-          class="nav-item"
-          data-page="alertsPage"
-          type="button"
-        >
-          🔔 Alerts
-        </button>
-
-        <button
-          class="nav-item"
-          data-page="profilePage"
-          type="button"
-        >
-          👤 Profile
-        </button>
-
-      </aside>
-
-
-      <!-- MAIN -->
-
-      <main class="main">
-
-
-        <!-- ==================================================
-             DASHBOARD
-        ================================================== -->
-
-        <section
-          id="dashboardPage"
-          class="page active"
-        >
-
-          <div class="page-header">
-
-            <div>
-              <h2>Dashboard</h2>
-              <p>Overview of your medicine business</p>
-            </div>
-
-          </div>
-
-
-          <div class="stats-grid">
-
-            <div class="stat-card">
-
-              <div class="stat-top">
-                <div class="stat-icon">💊</div>
-              </div>
-
-              <div class="stat-label">
-                Total Medicines
-              </div>
-
-              <div
-                class="stat-value"
-                id="totalMedicines"
-              >
-                0
-              </div>
-
-            </div>
-
-
-            <div class="stat-card">
-
-              <div class="stat-top">
-                <div class="stat-icon">📦</div>
-              </div>
-
-              <div class="stat-label">
-                Total Stock
-              </div>
-
-              <div
-                class="stat-value"
-                id="totalStock"
-              >
-                0
-              </div>
-
-            </div>
-
-
-            <div class="stat-card">
-
-              <div class="stat-top">
-                <div class="stat-icon">⚠️</div>
-              </div>
-
-              <div class="stat-label">
-                Low Stock
-              </div>
-
-              <div
-                class="stat-value"
-                id="lowStock"
-              >
-                0
-              </div>
-
-            </div>
-
-
-            <div class="stat-card">
-
-              <div class="stat-top">
-                <div class="stat-icon">⏰</div>
-              </div>
-
-              <div class="stat-label">
-                Expiring Soon
-              </div>
-
-              <div
-                class="stat-value"
-                id="expiringSoon"
-              >
-                0
-              </div>
-
-            </div>
-
-          </div>
-
-
-          <div class="dashboard-grid">
-
-            <div class="panel">
-
-              <div class="panel-title">
-                Quick Actions
-              </div>
-
-              <div class="quick-grid">
-
-                <button
-                  class="quick-btn"
-                  id="quickAddMedicine"
-                  type="button"
-                >
-                  <span>💊</span>
-                  Add Medicine
-                </button>
-
-                <button
-                  class="quick-btn"
-                  id="quickSale"
-                  type="button"
-                >
-                  <span>🧾</span>
-                  Record Sale
-                </button>
-
-                <button
-                  class="quick-btn"
-                  data-open-page="profitPage"
-                  type="button"
-                >
-                  <span>💰</span>
-                  View Profit
-                </button>
-
-                <button
-                  class="quick-btn"
-                  data-open-page="alertsPage"
-                  type="button"
-                >
-                  <span>🔔</span>
-                  View Alerts
-                </button>
-
-              </div>
-
-            </div>
-
-
-            <div class="panel">
-
-              <div class="panel-title">
-                Stock Alerts
-              </div>
-
-              <div id="dashboardAlerts">
-
-                <div class="empty-state">
-                  No alerts available
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </section>
-
-
-        <!-- ==================================================
-             MEDICINES
-        ================================================== -->
-
-        <section
-          id="medicinesPage"
-          class="page"
-        >
-
-          <div class="page-header">
-
-            <div>
-              <h2>Medicines</h2>
-              <p>Manage your medicine inventory</p>
-            </div>
-
-            <button
-              class="action-btn"
-              id="addMedicineBtn"
-              type="button"
-            >
-              + Add Medicine
-            </button>
-
-          </div>
-
-
-          <div class="table-panel">
-
-            <div class="table-toolbar">
-
-              <input
-                id="medicineSearch"
-                class="search-input"
-                type="search"
-                placeholder="Search medicine..."
-              >
-
-              <select
-                id="medicineFilter"
-                class="filter-select"
-              >
-                <option value="all">All</option>
-                <option value="available">Available</option>
-                <option value="low">Low Stock</option>
-                <option value="out">Out of Stock</option>
-                <option value="expiring">Expiring Soon</option>
-                <option value="expired">Expired</option>
-              </select>
-
-            </div>
-
-
-            <div class="table-wrap">
-
-              <table>
-
-                <thead>
-
-                  <tr>
-                    <th>Medicine</th>
-                    <th>Category</th>
-                    <th>Stock</th>
-                    <th>Unit</th>
-                    <th>Expiry</th>
-                    <th>Stock Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-
-                </thead>
-
-                <tbody id="medicineTableBody">
-
-                  <tr>
-                    <td
-                      colspan="8"
-                      class="empty-state"
-                    >
-                      No medicines added yet
-                    </td>
-                  </tr>
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          </div>
-
-        </section>
-
-
-        <!-- ==================================================
-             SALES
-        ================================================== -->
-
-        <section
-          id="salesPage"
-          class="page"
-        >
-
-          <div class="page-header">
-
-            <div>
-              <h2>Sales</h2>
-              <p>Record and manage medicine sales</p>
-            </div>
-
-            <button
-              class="action-btn"
-              id="recordSaleBtn"
-              type="button"
-            >
-              + Record Sale
-            </button>
-
-          </div>
-
-
-          <div class="table-panel">
-
-            <div class="table-toolbar">
-
-              <input
-                id="salesSearch"
-                class="search-input"
-                type="search"
-                placeholder="Search sales..."
-              >
-
-            </div>
-
-
-            <div class="table-wrap">
-
-              <table>
-
-                <thead>
-
-                  <tr>
-                    <th>Date</th>
-                    <th>Medicine</th>
-                    <th>Quantity</th>
-                    <th>Sale Amount</th>
-                    <th>Cost</th>
-                    <th>Profit</th>
-                  </tr>
-
-                </thead>
-
-                <tbody id="salesTableBody">
-
-                  <tr>
-                    <td
-                      colspan="6"
-                      class="empty-state"
-                    >
-                      No sales recorded yet
-                    </td>
-                  </tr>
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          </div>
-
-        </section>
-
-
-        <!-- ==================================================
-             PROFIT
-        ================================================== -->
-
-        <section
-          id="profitPage"
-          class="page"
-        >
-
-          <div class="page-header">
-
-            <div>
-              <h2>Profit Report</h2>
-              <p>Track your sales and business profit</p>
-            </div>
-
-          </div>
-
-
-          <div class="profit-grid">
-
-            <div class="profit-card">
-
-              <h3>Today</h3>
-
-              <strong id="todayProfit">
-                Rs 0
-              </strong>
-
-            </div>
-
-
-            <div class="profit-card">
-
-              <h3>This Week</h3>
-
-              <strong id="weekProfit">
-                Rs 0
-              </strong>
-
-            </div>
-
-
-            <div class="profit-card">
-
-              <h3>This Month</h3>
-
-              <strong id="monthProfit">
-                Rs 0
-              </strong>
-
-            </div>
-
-          </div>
-
-
-          <div class="panel">
-
-            <div class="panel-title">
-              Sales Summary
-            </div>
-
-            <div id="profitSummary">
-
-              <div class="alert-row">
-                <span>Total Sales</span>
-                <strong id="totalSalesCount">0</strong>
-              </div>
-
-              <div class="alert-row">
-                <span>Total Quantity Sold</span>
-                <strong id="totalQuantitySold">0</strong>
-              </div>
-
-              <div class="alert-row">
-                <span>Total Revenue</span>
-                <strong id="totalRevenue">Rs 0</strong>
-              </div>
-
-              <div class="alert-row">
-                <span>Total Profit</span>
-                <strong id="totalProfit">Rs 0</strong>
-              </div>
-
-            </div>
-
-          </div>
-
-        </section>
-
-
-        <!-- ==================================================
-             HISTORY
-        ================================================== -->
-
-        <section
-          id="historyPage"
-          class="page"
-        >
-
-          <div class="page-header">
-
-            <div>
-              <h2>History</h2>
-              <p>Complete stock and sales activity</p>
-            </div>
-
-          </div>
-
-
-          <div class="table-panel">
-
-            <div class="table-wrap">
-
-              <table>
-
-                <thead>
-
-                  <tr>
-                    <th>Date</th>
-                    <th>Action</th>
-                    <th>Medicine</th>
-                    <th>Quantity</th>
-                    <th>Details</th>
-                  </tr>
-
-                </thead>
-
-                <tbody id="historyTableBody">
-
-                  <tr>
-                    <td
-                      colspan="5"
-                      class="empty-state"
-                    >
-                      No history available
-                    </td>
-                  </tr>
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          </div>
-
-        </section>
-
-
-        <!-- ==================================================
-             ALERTS
-        ================================================== -->
-
-        <section
-          id="alertsPage"
-          class="page"
-        >
-
-          <div class="page-header">
-
-            <div>
-              <h2>Alerts</h2>
-              <p>Low stock and expiry notifications</p>
-            </div>
-
-          </div>
-
-
-          <div
-            class="panel"
-            id="alertsList"
-          >
-
-            <div class="empty-state">
-              No alerts available
-            </div>
-
-          </div>
-
-        </section>
-
-
-        <!-- ==================================================
-             PROFILE
-        ================================================== -->
-
-        <section
-          id="profilePage"
-          class="page"
-        >
-
-          <div class="page-header">
-
-            <div>
-              <h2>Profile</h2>
-              <p>Your account information</p>
-            </div>
-
-          </div>
-
-
-          <div class="profile-card">
-
-            <div
-              class="profile-avatar"
-              id="profileAvatar"
-            >
-              U
-            </div>
-
-            <h2 id="profileName">
-              User
-            </h2>
-
-            <p
-              id="profileEmail"
-              style="color:#64748b;margin-top:5px;"
-            >
-              -
-            </p>
-
-
-            <div class="profile-info">
-
-              <div class="profile-line">
-                <span>Account Type</span>
-                <strong>User</strong>
-              </div>
-
-              <div class="profile-line">
-                <span>Account Status</span>
-                <span class="badge green">
-                  Active
-                </span>
-              </div>
-
-              <div class="profile-line">
-                <span>Data Security</span>
-                <span>
-                  Personal
-                </span>
-              </div>
-
-            </div>
-
-          </div>
-
-        </section>
-
-      </main>
-
-    </div>
-
-  </section>
-
-
-  <!-- ========================================================
-       MEDICINE MODAL
-  ========================================================= -->
-
-  <div
-    id="medicineModal"
-    class="modal-overlay hidden"
-  >
-
-    <div class="modal">
-
-      <div class="modal-header">
-
-        <h2 id="medicineModalTitle">
-          Add Medicine
-        </h2>
-
-        <button
-          class="close-btn"
-          data-close-modal="medicineModal"
-          type="button"
-        >
-          ×
-        </button>
+        <div class="stat-card">
+          <span>💰 Today's Sales</span>
+          <strong id="dashboardTodaySales">Rs. 0</strong>
+          <small id="dashboardTodayProfit">
+            Profit Rs. 0
+          </small>
+        </div>
+
+        <div class="stat-card">
+          <span>📅 Monthly Profit</span>
+          <strong id="dashboardMonthProfit">Rs. 0</strong>
+          <small id="dashboardMonthSales">
+            Sales Rs. 0
+          </small>
+        </div>
+
+        <div class="stat-card">
+          <span>📈 Yearly Profit</span>
+          <strong id="dashboardYearProfit">Rs. 0</strong>
+          <small id="dashboardYearSales">
+            Sales Rs. 0
+          </small>
+        </div>
 
       </div>
 
 
-      <form id="medicineForm">
+      <div class="mini-grid">
+
+        <div class="mini-card danger-card">
+          <strong id="expiredCount">0</strong>
+          <span>Expired</span>
+        </div>
+
+        <div class="mini-card warning-card">
+          <strong id="expiringCount">0</strong>
+          <span>Expiring Soon</span>
+        </div>
+
+        <div class="mini-card">
+          <strong id="lowStockCount">0</strong>
+          <span>Low Stock</span>
+        </div>
+
+        <div class="mini-card">
+          <strong id="customerDue">Rs. 0</strong>
+          <span>Customer Due</span>
+        </div>
+
+      </div>
+
+
+      <div class="dashboard-grid">
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <h2>Recent Sales</h2>
+
+            <button
+              class="text-button"
+              data-page-jump="sales"
+            >
+              View All
+            </button>
+
+          </div>
+
+          <div id="recentSales"></div>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <h2>Expiry Alerts</h2>
+
+            <button
+              class="text-button"
+              data-page-jump="expiry"
+            >
+              View All
+            </button>
+
+          </div>
+
+          <div id="dashboardExpiry"></div>
+
+        </div>
+
+      </div>
+
+
+      <div class="panel">
+
+        <h2>Quick Actions</h2>
+
+        <div class="quick-actions">
+
+          <button data-modal="stock">
+            ➕ Add Stock
+          </button>
+
+          <button data-modal="purchase">
+            🛒 Purchase
+          </button>
+
+          <button data-modal="sale">
+            🧾 New Sale
+          </button>
+
+          <button data-modal="customer">
+            👤 Customer
+          </button>
+
+          <button data-modal="supplier">
+            🏭 Supplier
+          </button>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= STOCK ================= -->
+
+    <section id="page-stock" class="page">
+
+      <div class="page-actions">
 
         <input
-          type="hidden"
-          id="medicineId"
+          id="stockSearch"
+          placeholder="Search medicine, company, batch..."
         >
 
-        <div class="form-grid">
+        <button class="primary" data-modal="stock">
+          + Add Stock
+        </button>
 
-          <div class="form-group form-full">
+      </div>
 
-            <label>Medicine Name</label>
+      <div class="panel">
+        <div id="stockTable"></div>
+      </div>
 
-            <input
-              id="medicineName"
-              class="form-control"
-              type="text"
-              placeholder="e.g. Amoxicillin"
-              required
-            >
+    </section>
 
-          </div>
 
+    <!-- ================= PURCHASES ================= -->
 
-          <div class="form-group">
+    <section id="page-purchases" class="page">
 
-            <label>Category</label>
+      <div class="page-actions">
 
-            <select
-              id="medicineCategory"
-              class="form-control"
-              required
-            >
-
-              <option value="">
-                Select category
-              </option>
-
-              <option>Antibiotic</option>
-              <option>Vitamin</option>
-              <option>Mineral</option>
-              <option>Vaccine</option>
-              <option>Antiparasitic</option>
-              <option>Electrolyte</option>
-              <option>Other</option>
-
-            </select>
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Unit</label>
-
-            <select
-              id="medicineUnit"
-              class="form-control"
-              required
-            >
-
-              <option value="">
-                Select unit
-              </option>
-
-              <option>Bottle</option>
-              <option>Box</option>
-              <option>Vial</option>
-              <option>Pack</option>
-              <option>Sachet</option>
-              <option>Tablet</option>
-              <option>Kg</option>
-              <option>Liter</option>
-              <option>Piece</option>
-
-            </select>
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Stock Quantity</label>
-
-            <input
-              id="medicineStock"
-              class="form-control"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Minimum Stock Alert</label>
-
-            <input
-              id="medicineMinStock"
-              class="form-control"
-              type="number"
-              min="0"
-              step="0.01"
-              value="5"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Purchase Price</label>
-
-            <input
-              id="medicinePurchasePrice"
-              class="form-control"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Selling Price</label>
-
-            <input
-              id="medicineSellingPrice"
-              class="form-control"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Expiry Date</label>
-
-            <input
-              id="medicineExpiry"
-              class="form-control"
-              type="date"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Stock Entry Date</label>
-
-            <input
-              id="medicineStockDate"
-              class="form-control"
-              type="date"
-              required
-            >
-
-          </div>
-
-        </div>
-
-
-        <div class="modal-actions">
-
-          <button
-            type="button"
-            class="secondary-btn"
-            data-close-modal="medicineModal"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            class="action-btn"
-          >
-            Save Medicine
-          </button>
-
-        </div>
-
-      </form>
-
-    </div>
-
-  </div>
-
-
-  <!-- ========================================================
-       SALE MODAL
-  ========================================================= -->
-
-  <div
-    id="saleModal"
-    class="modal-overlay hidden"
-  >
-
-    <div class="modal">
-
-      <div class="modal-header">
-
-        <h2>Record Sale</h2>
-
-        <button
-          class="close-btn"
-          data-close-modal="saleModal"
-          type="button"
+        <input
+          id="purchaseSearch"
+          placeholder="Search purchases..."
         >
-          ×
+
+        <button class="primary" data-modal="purchase">
+          + Add Purchase
+        </button>
+
+      </div>
+
+      <div class="panel">
+        <div id="purchaseTable"></div>
+      </div>
+
+    </section>
+
+
+    <!-- ================= SALES ================= -->
+
+    <section id="page-sales" class="page">
+
+      <div class="page-actions">
+
+        <input
+          id="salesSearch"
+          placeholder="Search sales, medicine or customer..."
+        >
+
+        <button class="primary" data-modal="sale">
+          + New Sale
+        </button>
+
+      </div>
+
+      <div class="panel">
+        <div id="salesTable"></div>
+      </div>
+
+    </section>
+
+
+    <!-- ================= CUSTOMERS ================= -->
+
+    <section id="page-customers" class="page">
+
+      <div class="page-actions">
+
+        <input
+          id="customerSearch"
+          placeholder="Search customer..."
+        >
+
+        <button class="primary" data-modal="customer">
+          + Add Customer
+        </button>
+
+      </div>
+
+      <div class="panel">
+        <div id="customerTable"></div>
+      </div>
+
+    </section>
+
+
+    <!-- ================= SUPPLIERS ================= -->
+
+    <section id="page-suppliers" class="page">
+
+      <div class="page-actions">
+
+        <input
+          id="supplierSearch"
+          placeholder="Search supplier..."
+        >
+
+        <button class="primary" data-modal="supplier">
+          + Add Supplier
+        </button>
+
+      </div>
+
+      <div class="panel">
+        <div id="supplierTable"></div>
+      </div>
+
+    </section>
+
+
+    <!-- ================= EXPIRY ================= -->
+
+    <section id="page-expiry" class="page">
+
+      <div class="mini-grid">
+
+        <div class="mini-card danger-card">
+          <strong id="expiryExpired">0</strong>
+          <span>Expired</span>
+        </div>
+
+        <div class="mini-card warning-card">
+          <strong id="expiry7">0</strong>
+          <span>Within 7 Days</span>
+        </div>
+
+        <div class="mini-card">
+          <strong id="expiry30">0</strong>
+          <span>Within 30 Days</span>
+        </div>
+
+      </div>
+
+      <div class="panel">
+        <div id="expiryTable"></div>
+      </div>
+
+    </section>
+
+
+    <!-- ================= REPORTS ================= -->
+
+    <section id="page-reports" class="page">
+
+      <div class="report-filters">
+
+        <div>
+          <label>From</label>
+          <input type="date" id="reportFrom">
+        </div>
+
+        <div>
+          <label>To</label>
+          <input type="date" id="reportTo">
+        </div>
+
+        <button class="primary" id="applyReport">
+          Apply
+        </button>
+
+        <button class="secondary" id="printReport">
+          🖨 Print
+        </button>
+
+        <button class="secondary" id="exportCSV">
+          📥 CSV
         </button>
 
       </div>
 
 
-      <form id="saleForm">
+      <div class="stat-grid">
+
+        <div class="stat-card">
+          <span>Total Sales</span>
+          <strong id="reportSales">Rs. 0</strong>
+        </div>
+
+        <div class="stat-card">
+          <span>Cost</span>
+          <strong id="reportCost">Rs. 0</strong>
+        </div>
+
+        <div class="stat-card">
+          <span>Profit</span>
+          <strong id="reportProfit">Rs. 0</strong>
+        </div>
+
+        <div class="stat-card">
+          <span>Transactions</span>
+          <strong id="reportTransactions">0</strong>
+        </div>
+
+      </div>
+
+
+      <div class="dashboard-grid">
+
+        <div class="panel">
+
+          <h2>Top Selling Medicines</h2>
+
+          <div id="topMedicines"></div>
+
+        </div>
+
+        <div class="panel">
+
+          <h2>Monthly Profit</h2>
+
+          <div id="monthlyProfit"></div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= HISTORY ================= -->
+
+    <section id="page-history" class="page">
+
+      <div class="page-actions">
+
+        <input
+          id="historySearch"
+          placeholder="Search activity..."
+        >
+
+      </div>
+
+      <div class="panel">
+        <div id="historyTable"></div>
+      </div>
+
+    </section>
+
+
+    <!-- ================= SETTINGS ================= -->
+
+    <section id="page-settings" class="page">
+
+      <div class="panel">
+
+        <h2>Store Settings</h2>
 
         <div class="form-grid">
 
-          <div class="form-group form-full">
+          <label>
+            Store Name
+            <input id="storeName">
+          </label>
 
-            <label>Medicine</label>
+          <label>
+            Owner Name
+            <input id="ownerName">
+          </label>
 
-            <select
-              id="saleMedicine"
-              class="form-control"
-              required
-            >
+          <label>
+            Phone
+            <input id="storePhone">
+          </label>
 
-              <option value="">
-                Select medicine
-              </option>
+          <label>
+            Address
+            <input id="storeAddress">
+          </label>
 
-            </select>
+          <label>
+            Currency
+            <input id="currency" value="Rs.">
+          </label>
 
-          </div>
+          <label>
+            Default Minimum Stock
+            <input id="defaultMinStock" type="number" value="10">
+          </label>
 
-
-          <div class="form-group">
-
-            <label>Quantity Sold</label>
-
-            <input
-              id="saleQuantity"
-              class="form-control"
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Sale Date</label>
-
-            <input
-              id="saleDate"
-              class="form-control"
-              type="date"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Sale Amount</label>
-
-            <input
-              id="saleAmount"
-              class="form-control"
-              type="number"
-              min="0"
-              step="0.01"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>Cost Amount</label>
-
-            <input
-              id="saleCost"
-              class="form-control"
-              type="number"
-              min="0"
-              step="0.01"
-              required
-            >
-
-          </div>
+          <label>
+            Expiry Alert Days
+            <input id="expiryDays" type="number" value="30">
+          </label>
 
         </div>
 
+        <button class="primary" id="saveSettings">
+          Save Settings
+        </button>
 
-        <div
-          style="
-            background:#eff6ff;
-            padding:13px;
-            border-radius:11px;
-            margin-top:5px;
-            font-size:13px;
-          "
-        >
-          Estimated Profit:
-          <strong id="saleProfitPreview">
-            Rs 0
-          </strong>
-        </div>
+      </div>
 
 
-        <div class="modal-actions">
+      <div class="panel">
 
-          <button
-            type="button"
-            class="secondary-btn"
-            data-close-modal="saleModal"
-          >
-            Cancel
-          </button>
+        <h2>Account</h2>
 
-          <button
-            type="submit"
-            class="action-btn"
-          >
-            Save Sale
-          </button>
+        <p id="accountInfo"></p>
 
-        </div>
+      </div>
 
-      </form>
+    </section>
+
+  </main>
+
+</section>
+
+
+<!-- ================= MODAL ================= -->
+
+<div id="modal" class="modal hidden">
+
+  <div class="modal-box">
+
+    <div class="modal-header">
+
+      <h2 id="modalTitle">Form</h2>
+
+      <button id="closeModal">
+        ×
+      </button>
 
     </div>
 
+    <div id="modalBody"></div>
+
   </div>
 
+</div>
 
-  <!-- TOAST -->
 
-  <div id="toastContainer"></div>
+<script type="module" src="app.js"></script>
 
-
-  <script>
-
-    /* ========================================================
-       UI ONLY
-       Firebase database logic will be connected in app.js
-       ======================================================== */
-
-    const $ = (id) => document.getElementById(id);
-
-    function showToast(message) {
-
-      const container = $("toastContainer");
-
-      const toast = document.createElement("div");
-
-      toast.className = "toast";
-      toast.textContent = message;
-
-      container.appendChild(toast);
-
-      setTimeout(() => {
-        toast.remove();
-      }, 3000);
-    }
-
-
-    /* ================= AUTH SWITCH ================= */
-
-    $("showRegisterBtn").addEventListener("click", () => {
-
-      $("loginForm").classList.add("hidden");
-      $("registerForm").classList.remove("hidden");
-
-      $("loginSwitchText").classList.add("hidden");
-      $("registerSwitchText").classList.remove("hidden");
-
-    });
-
-
-    $("showLoginBtn").addEventListener("click", () => {
-
-      $("registerForm").classList.add("hidden");
-      $("loginForm").classList.remove("hidden");
-
-      $("registerSwitchText").classList.add("hidden");
-      $("loginSwitchText").classList.remove("hidden");
-
-    });
-
-
-    /* ================= SIDEBAR ================= */
-
-    $("menuBtn").addEventListener("click", () => {
-
-      $("sidebar").classList.toggle("open");
-
-    });
-
-
-    document.querySelectorAll(".nav-item").forEach(button => {
-
-      button.addEventListener("click", () => {
-
-        const pageId = button.dataset.page;
-
-        document.querySelectorAll(".nav-item")
-          .forEach(item => item.classList.remove("active"));
-
-        button.classList.add("active");
-
-        document.querySelectorAll(".page")
-          .forEach(page => page.classList.remove("active"));
-
-        $(pageId).classList.add("active");
-
-        $("sidebar").classList.remove("open");
-
-      });
-
-    });
-
-
-    /* ================= QUICK NAVIGATION ================= */
-
-    document.querySelectorAll("[data-open-page]").forEach(button => {
-
-      button.addEventListener("click", () => {
-
-        const pageId = button.dataset.openPage;
-
-        document.querySelectorAll(".nav-item")
-          .forEach(item => {
-
-            item.classList.toggle(
-              "active",
-              item.dataset.page === pageId
-            );
-
-          });
-
-        document.querySelectorAll(".page")
-          .forEach(page => page.classList.remove("active"));
-
-        $(pageId).classList.add("active");
-
-      });
-
-    });
-
-
-    /* ================= MODALS ================= */
-
-    function openModal(id) {
-      $(id).classList.remove("hidden");
-    }
-
-    function closeModal(id) {
-      $(id).classList.add("hidden");
-    }
-
-
-    document.querySelectorAll("[data-close-modal]")
-      .forEach(button => {
-
-        button.addEventListener("click", () => {
-
-          closeModal(button.dataset.closeModal);
-
-        });
-
-      });
-
-
-    document.querySelectorAll(".modal-overlay")
-      .forEach(overlay => {
-
-        overlay.addEventListener("click", (event) => {
-
-          if (event.target === overlay) {
-            overlay.classList.add("hidden");
-          }
-
-        });
-
-      });
-
-
-    /* ================= ADD MEDICINE ================= */
-
-    $("addMedicineBtn").addEventListener("click", () => {
-
-      $("medicineModalTitle").textContent = "Add Medicine";
-
-      $("medicineForm").reset();
-
-      $("medicineId").value = "";
-
-      $("medicineStockDate").value =
-        new Date().toISOString().split("T")[0];
-
-      openModal("medicineModal");
-
-    });
-
-
-    $("quickAddMedicine").addEventListener("click", () => {
-
-      $("addMedicineBtn").click();
-
-    });
-
-
-    /* ================= SALE ================= */
-
-    $("recordSaleBtn").addEventListener("click", () => {
-
-      $("saleForm").reset();
-
-      $("saleDate").value =
-        new Date().toISOString().split("T")[0];
-
-      openModal("saleModal");
-
-    });
-
-
-    $("quickSale").addEventListener("click", () => {
-
-      $("recordSaleBtn").click();
-
-    });
-
-
-    /* ================= SALE PROFIT PREVIEW ================= */
-
-    function updateSaleProfit() {
-
-      const sale =
-        Number($("saleAmount").value) || 0;
-
-      const cost =
-        Number($("saleCost").value) || 0;
-
-      const profit = sale - cost;
-
-      $("saleProfitPreview").textContent =
-        "Rs " + profit.toLocaleString();
-
-    }
-
-
-    $("saleAmount").addEventListener(
-      "input",
-      updateSaleProfit
-    );
-
-    $("saleCost").addEventListener(
-      "input",
-      updateSaleProfit
-    );
-
-
-    /* ================= ESC MODAL ================= */
-
-    document.addEventListener("keydown", event => {
-
-      if (event.key === "Escape") {
-
-        document.querySelectorAll(".modal-overlay")
-          .forEach(modal => {
-            modal.classList.add("hidden");
-          });
-
-      }
-
-    });
-
-
-    /* ================= REFRESH ================= */
-
-    $("refreshBtn").addEventListener("click", () => {
-
-      showToast("Refreshing data...");
-
-      window.dispatchEvent(
-        new CustomEvent("poultry:refresh")
-      );
-
-    });
-
-
-    /* ================= FORM FALLBACK ================= */
-
-    $("loginForm").addEventListener("submit", event => {
-
-      event.preventDefault();
-
-      window.dispatchEvent(
-        new CustomEvent("poultry:login", {
-          detail: {
-            email: $("loginEmail").value,
-            password: $("loginPassword").value
-          }
-        })
-      );
-
-    });
-
-
-    $("registerForm").addEventListener("submit", event => {
-
-      event.preventDefault();
-
-      const password =
-        $("registerPassword").value;
-
-      const confirm =
-        $("registerConfirmPassword").value;
-
-      if (password !== confirm) {
-
-        showToast("Passwords do not match.");
-        return;
-
-      }
-
-      window.dispatchEvent(
-        new CustomEvent("poultry:register", {
-          detail: {
-            name: $("registerName").value,
-            email: $("registerEmail").value,
-            password
-          }
-        })
-      );
-
-    });
-
-
-    $("forgotPasswordBtn").addEventListener("click", () => {
-
-      const email = $("loginEmail").value.trim();
-
-      if (!email) {
-
-        showToast("Enter your email address first.");
-        $("loginEmail").focus();
-        return;
-
-      }
-
-      window.dispatchEvent(
-        new CustomEvent("poultry:forgot-password", {
-          detail: { email }
-        })
-      );
-
-    });
-
-
-    $("medicineForm").addEventListener("submit", event => {
-
-      event.preventDefault();
-
-      window.dispatchEvent(
-        new CustomEvent("poultry:save-medicine")
-      );
-
-    });
-
-
-    $("saleForm").addEventListener("submit", event => {
-
-      event.preventDefault();
-
-      window.dispatchEvent(
-        new CustomEvent("poultry:save-sale")
-      );
-
-    });
-
-
-    $("logoutBtn").addEventListener("click", () => {
-
-      window.dispatchEvent(
-        new CustomEvent("poultry:logout")
-      );
-
-    });
-
-
-    /* ================= GLOBAL HELPERS ================= */
-
-    window.PoultryUI = {
-
-      showApp() {
-
-        $("authScreen").classList.add("hidden");
-        $("appScreen").classList.remove("hidden");
-
-      },
-
-      showAuth() {
-
-        $("appScreen").classList.add("hidden");
-        $("authScreen").classList.remove("hidden");
-
-      },
-
-      openModal,
-
-      closeModal,
-
-      showToast,
-
-      setText(id, value) {
-
-        if ($(id)) {
-          $(id).textContent = value;
-        }
-
-      }
-
-    };
-
-  </script>
-<script type="module" src="./app.js"></script>
 </body>
-                           </html>
+  </html>
