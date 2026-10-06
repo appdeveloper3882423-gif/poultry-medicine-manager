@@ -3,245 +3,224 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f766e">
   <title>Poultry Medicine Manager</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<div id="toast"></div>
-
-<!-- ================= LOGIN / SIGNUP ================= -->
-<section id="authView" class="auth-page">
-
+<!-- ================= AUTH ================= -->
+<div id="authView" class="auth-page">
   <div class="auth-card">
 
-    <div class="logo big">
-      <span>🐔</span>
+    <div class="brand-large">
+      <div class="brand-icon">🐔</div>
       <div>
-        <b>Poultry Medicine</b>
-        <small>Management System</small>
+        <h1>Poultry Medicine</h1>
+        <p>Inventory & Sales Manager</p>
       </div>
     </div>
-
-    <p class="subtitle">
-      Stock • Sales • Purchases • Profit • Expiry
-    </p>
 
     <div class="auth-tabs">
       <button class="auth-tab active" data-auth="login">Login</button>
-      <button class="auth-tab" data-auth="signup">Create Account</button>
+      <button class="auth-tab" data-auth="register">Create Account</button>
     </div>
 
-    <form id="authForm">
-
+    <!-- LOGIN -->
+    <form id="loginForm" class="auth-form">
       <label>Email</label>
-      <input
-        id="authEmail"
-        type="email"
-        placeholder="Enter email"
-        required
-      >
+      <input id="loginEmail" type="email" placeholder="Enter your email" required>
 
       <label>Password</label>
-      <input
-        id="authPassword"
-        type="password"
-        placeholder="Enter password"
-        minlength="6"
-        required
-      >
+      <input id="loginPassword" type="password" placeholder="Enter password" required>
 
-      <div id="confirmPasswordBox" class="hidden">
-        <label>Confirm Password</label>
-        <input
-          id="authConfirm"
-          type="password"
-          minlength="6"
-          placeholder="Confirm password"
-        >
-      </div>
+      <button class="primary-btn full" type="submit">Login</button>
 
-      <button class="primary full" id="authButton">
-        Login
-      </button>
-
+      <p class="auth-note">
+        Your inventory is securely synced with your Firebase account.
+      </p>
     </form>
 
-    <p id="authError" class="error"></p>
+    <!-- REGISTER -->
+    <form id="registerForm" class="auth-form hidden">
+      <label>Your Name</label>
+      <input id="registerName" type="text" placeholder="Your name" required>
 
-    <div class="secure-note">
-      🔐 Your data is securely separated by your account.
-    </div>
+      <label>Business / Shop Name</label>
+      <input id="registerBusiness" type="text" placeholder="Business name" required>
 
+      <label>Email</label>
+      <input id="registerEmail" type="email" placeholder="Email address" required>
+
+      <label>Password</label>
+      <input id="registerPassword" type="password" minlength="6" placeholder="Minimum 6 characters" required>
+
+      <button class="primary-btn full" type="submit">Create Account</button>
+    </form>
+
+    <div id="authError" class="auth-error"></div>
   </div>
+</div>
 
-</section>
 
-
-<!-- ================= MAIN APPLICATION ================= -->
-
-<section id="appView" class="app hidden">
+<!-- ================= APP ================= -->
+<div id="appView" class="app hidden">
 
   <!-- SIDEBAR -->
-
   <aside class="sidebar" id="sidebar">
 
-    <div class="logo sidebar-logo">
-      <span>🐔</span>
+    <div class="sidebar-brand">
+      <div class="brand-icon small">🐔</div>
       <div>
-        <b>Poultry Medicine</b>
-        <small>Manager</small>
+        <strong>Poultry Manager</strong>
+        <span>Stock & Sales</span>
       </div>
     </div>
 
     <nav>
-
-      <button class="nav active" data-page="dashboard">
-        🏠 Dashboard
+      <button class="nav-item active" data-page="dashboard">
+        <span>📊</span> Dashboard
       </button>
 
-      <button class="nav" data-page="stock">
-        💊 Stock
+      <button class="nav-item" data-page="inventory">
+        <span>📦</span> Inventory
       </button>
 
-      <button class="nav" data-page="purchases">
-        🛒 Purchases
+      <button class="nav-item" data-page="sale">
+        <span>💰</span> New Sale
       </button>
 
-      <button class="nav" data-page="sales">
-        💰 Sales
+      <button class="nav-item" data-page="history">
+        <span>🧾</span> Sales History
       </button>
 
-      <button class="nav" data-page="customers">
-        👥 Customers
+      <button class="nav-item" data-page="customers">
+        <span>👥</span> Customers
       </button>
 
-      <button class="nav" data-page="suppliers">
-        🏭 Suppliers
+      <button class="nav-item" data-page="reports">
+        <span>📈</span> Reports
       </button>
 
-      <button class="nav" data-page="expiry">
-        ⏰ Expiry
+      <button class="nav-item" data-page="settings">
+        <span>⚙️</span> Settings
       </button>
-
-      <button class="nav" data-page="reports">
-        📊 Reports
-      </button>
-
-      <button class="nav" data-page="history">
-        📜 History
-      </button>
-
-      <button class="nav" data-page="settings">
-        ⚙️ Settings
-      </button>
-
     </nav>
 
     <div class="sidebar-bottom">
+      <div class="user-mini">
+        <div class="avatar" id="sideAvatar">U</div>
+        <div>
+          <strong id="sideUserName">User</strong>
+          <span id="sideBusiness">Business</span>
+        </div>
+      </div>
 
-      <div id="loggedUser" class="logged-user"></div>
-
-      <button id="logoutButton" class="logout">
-        ↪ Logout
-      </button>
-
+      <button id="logoutBtn" class="logout-btn">🚪 Logout</button>
     </div>
 
   </aside>
 
 
   <!-- MAIN -->
-
   <main class="main">
 
     <header class="topbar">
-
-      <button id="menuButton" class="menu-button">
-        ☰
-      </button>
+      <button id="menuBtn" class="menu-btn">☰</button>
 
       <div>
-        <h1 id="pageTitle">Dashboard</h1>
-        <p id="pageSubtitle">Business overview</p>
+        <h2 id="pageTitle">Dashboard</h2>
+        <p id="pageSubtitle">Overview of your poultry medicine business</p>
       </div>
 
       <div class="top-actions">
-
-        <button class="notification-button" id="notificationButton">
-          🔔
-          <span id="alertCount">0</span>
+        <button id="quickSaleBtn" class="primary-btn">
+          + New Sale
         </button>
-
-        <div class="avatar" id="avatar">
-          U
-        </div>
-
       </div>
-
     </header>
 
 
     <!-- ================= DASHBOARD ================= -->
-
     <section id="page-dashboard" class="page active-page">
 
-      <div class="stat-grid">
+      <div class="welcome-box">
+        <div>
+          <span class="eyebrow">BUSINESS OVERVIEW</span>
+          <h2>Welcome, <span id="welcomeName">User</span> 👋</h2>
+          <p>Manage stock, sales, customers and profits from one place.</p>
+        </div>
+
+        <div class="welcome-date" id="todayDate"></div>
+      </div>
+
+
+      <div class="stats-grid">
 
         <div class="stat-card">
-          <span>💊 Total Stock</span>
-          <strong id="dashboardStock">0</strong>
-          <small id="dashboardStockValue">Value Rs. 0</small>
+          <div class="stat-icon blue">📦</div>
+          <div>
+            <span>Total Medicines</span>
+            <strong id="statMedicines">0</strong>
+            <small>Active stock items</small>
+          </div>
         </div>
 
         <div class="stat-card">
-          <span>💰 Today's Sales</span>
-          <strong id="dashboardTodaySales">Rs. 0</strong>
-          <small id="dashboardTodayProfit">
-            Profit Rs. 0
-          </small>
+          <div class="stat-icon orange">📊</div>
+          <div>
+            <span>Total Units</span>
+            <strong id="statUnits">0</strong>
+            <small>Available quantity</small>
+          </div>
         </div>
 
         <div class="stat-card">
-          <span>📅 Monthly Profit</span>
-          <strong id="dashboardMonthProfit">Rs. 0</strong>
-          <small id="dashboardMonthSales">
-            Sales Rs. 0
-          </small>
+          <div class="stat-icon green">💰</div>
+          <div>
+            <span>Total Sales</span>
+            <strong id="statSales">Rs. 0</strong>
+            <small>All-time sales</small>
+          </div>
         </div>
 
         <div class="stat-card">
-          <span>📈 Yearly Profit</span>
-          <strong id="dashboardYearProfit">Rs. 0</strong>
-          <small id="dashboardYearSales">
-            Sales Rs. 0
-          </small>
+          <div class="stat-icon purple">📈</div>
+          <div>
+            <span>Total Profit</span>
+            <strong id="statProfit">Rs. 0</strong>
+            <small>All-time profit</small>
+          </div>
         </div>
 
       </div>
 
 
-      <div class="mini-grid">
+      <div class="stats-grid smaller">
 
-        <div class="mini-card danger-card">
-          <strong id="expiredCount">0</strong>
-          <span>Expired</span>
-        </div>
-
-        <div class="mini-card warning-card">
-          <strong id="expiringCount">0</strong>
-          <span>Expiring Soon</span>
+        <div class="mini-card">
+          <span>Today's Profit</span>
+          <strong id="todayProfit">Rs. 0</strong>
+          <small id="todaySalesCount">0 sales today</small>
         </div>
 
         <div class="mini-card">
-          <strong id="lowStockCount">0</strong>
-          <span>Low Stock</span>
+          <span>This Month</span>
+          <strong id="monthProfit">Rs. 0</strong>
+          <small id="monthSalesCount">0 sales this month</small>
         </div>
 
         <div class="mini-card">
-          <strong id="customerDue">Rs. 0</strong>
-          <span>Customer Due</span>
+          <span>This Year</span>
+          <strong id="yearProfit">Rs. 0</strong>
+          <small id="yearSalesCount">0 sales this year</small>
+        </div>
+
+        <div class="mini-card danger-mini">
+          <span>Expiry Alerts</span>
+          <strong id="expiryCount">0</strong>
+          <small>Expired / expiring soon</small>
         </div>
 
       </div>
@@ -250,71 +229,34 @@
       <div class="dashboard-grid">
 
         <div class="panel">
-
           <div class="panel-header">
-            <h2>Recent Sales</h2>
+            <div>
+              <h3>Expiry Alerts</h3>
+              <p>Medicines requiring attention</p>
+            </div>
 
-            <button
-              class="text-button"
-              data-page-jump="sales"
-            >
-              View All
+            <button class="text-btn" data-page="inventory">
+              View Stock →
             </button>
-
           </div>
 
-          <div id="recentSales"></div>
-
+          <div id="expiryList" class="list-container"></div>
         </div>
 
 
         <div class="panel">
-
           <div class="panel-header">
-            <h2>Expiry Alerts</h2>
+            <div>
+              <h3>Recent Sales</h3>
+              <p>Latest transactions</p>
+            </div>
 
-            <button
-              class="text-button"
-              data-page-jump="expiry"
-            >
-              View All
+            <button class="text-btn" data-page="history">
+              View All →
             </button>
-
           </div>
 
-          <div id="dashboardExpiry"></div>
-
-        </div>
-
-      </div>
-
-
-      <div class="panel">
-
-        <h2>Quick Actions</h2>
-
-        <div class="quick-actions">
-
-          <button data-modal="stock">
-            ➕ Add Stock
-          </button>
-
-          <button data-modal="purchase">
-            🛒 Purchase
-          </button>
-
-          <button data-modal="sale">
-            🧾 New Sale
-          </button>
-
-          <button data-modal="customer">
-            👤 Customer
-          </button>
-
-          <button data-modal="supplier">
-            🏭 Supplier
-          </button>
-
+          <div id="recentSales" class="list-container"></div>
         </div>
 
       </div>
@@ -322,227 +264,205 @@
     </section>
 
 
-    <!-- ================= STOCK ================= -->
+    <!-- ================= INVENTORY ================= -->
+    <section id="page-inventory" class="page">
 
-    <section id="page-stock" class="page">
+      <div class="section-header">
+        <div>
+          <h2>Medicine Inventory</h2>
+          <p>Add, edit and monitor your complete stock.</p>
+        </div>
 
-      <div class="page-actions">
-
-        <input
-          id="stockSearch"
-          placeholder="Search medicine, company, batch..."
-        >
-
-        <button class="primary" data-modal="stock">
+        <button id="addStockBtn" class="primary-btn">
           + Add Stock
         </button>
-
       </div>
 
-      <div class="panel">
-        <div id="stockTable"></div>
-      </div>
 
-    </section>
+      <div class="toolbar">
 
-
-    <!-- ================= PURCHASES ================= -->
-
-    <section id="page-purchases" class="page">
-
-      <div class="page-actions">
-
-        <input
-          id="purchaseSearch"
-          placeholder="Search purchases..."
-        >
-
-        <button class="primary" data-modal="purchase">
-          + Add Purchase
-        </button>
-
-      </div>
-
-      <div class="panel">
-        <div id="purchaseTable"></div>
-      </div>
-
-    </section>
-
-
-    <!-- ================= SALES ================= -->
-
-    <section id="page-sales" class="page">
-
-      <div class="page-actions">
-
-        <input
-          id="salesSearch"
-          placeholder="Search sales, medicine or customer..."
-        >
-
-        <button class="primary" data-modal="sale">
-          + New Sale
-        </button>
-
-      </div>
-
-      <div class="panel">
-        <div id="salesTable"></div>
-      </div>
-
-    </section>
-
-
-    <!-- ================= CUSTOMERS ================= -->
-
-    <section id="page-customers" class="page">
-
-      <div class="page-actions">
-
-        <input
-          id="customerSearch"
-          placeholder="Search customer..."
-        >
-
-        <button class="primary" data-modal="customer">
-          + Add Customer
-        </button>
-
-      </div>
-
-      <div class="panel">
-        <div id="customerTable"></div>
-      </div>
-
-    </section>
-
-
-    <!-- ================= SUPPLIERS ================= -->
-
-    <section id="page-suppliers" class="page">
-
-      <div class="page-actions">
-
-        <input
-          id="supplierSearch"
-          placeholder="Search supplier..."
-        >
-
-        <button class="primary" data-modal="supplier">
-          + Add Supplier
-        </button>
-
-      </div>
-
-      <div class="panel">
-        <div id="supplierTable"></div>
-      </div>
-
-    </section>
-
-
-    <!-- ================= EXPIRY ================= -->
-
-    <section id="page-expiry" class="page">
-
-      <div class="mini-grid">
-
-        <div class="mini-card danger-card">
-          <strong id="expiryExpired">0</strong>
-          <span>Expired</span>
+        <div class="search-box">
+          🔍
+          <input id="inventorySearch" type="text" placeholder="Search medicine, batch, supplier...">
         </div>
 
-        <div class="mini-card warning-card">
-          <strong id="expiry7">0</strong>
-          <span>Within 7 Days</span>
-        </div>
-
-        <div class="mini-card">
-          <strong id="expiry30">0</strong>
-          <span>Within 30 Days</span>
-        </div>
+        <select id="inventoryStatus">
+          <option value="all">All Status</option>
+          <option value="available">Available</option>
+          <option value="low">Low Stock</option>
+          <option value="expired">Expired</option>
+          <option value="expiring">Expiring Soon</option>
+          <option value="out">Out of Stock</option>
+        </select>
 
       </div>
 
-      <div class="panel">
-        <div id="expiryTable"></div>
+
+      <div class="panel table-panel">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Medicine</th>
+                <th>Batch</th>
+                <th>Qty</th>
+                <th>Buy Price</th>
+                <th>Sale Price</th>
+                <th>Supplier</th>
+                <th>Expiry</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody id="inventoryTable"></tbody>
+          </table>
+        </div>
+
+        <div id="inventoryEmpty" class="empty-state hidden">
+          <div>📦</div>
+          <h3>No stock found</h3>
+          <p>Add your first medicine stock to get started.</p>
+        </div>
       </div>
 
     </section>
 
 
-    <!-- ================= REPORTS ================= -->
+    <!-- ================= SALE ================= -->
+    <section id="page-sale" class="page">
 
-    <section id="page-reports" class="page">
-
-      <div class="report-filters">
-
+      <div class="section-header">
         <div>
-          <label>From</label>
-          <input type="date" id="reportFrom">
+          <h2>New Sale</h2>
+          <p>Sell medicine and automatically update stock & profit.</p>
         </div>
-
-        <div>
-          <label>To</label>
-          <input type="date" id="reportTo">
-        </div>
-
-        <button class="primary" id="applyReport">
-          Apply
-        </button>
-
-        <button class="secondary" id="printReport">
-          🖨 Print
-        </button>
-
-        <button class="secondary" id="exportCSV">
-          📥 CSV
-        </button>
-
       </div>
 
 
-      <div class="stat-grid">
-
-        <div class="stat-card">
-          <span>Total Sales</span>
-          <strong id="reportSales">Rs. 0</strong>
-        </div>
-
-        <div class="stat-card">
-          <span>Cost</span>
-          <strong id="reportCost">Rs. 0</strong>
-        </div>
-
-        <div class="stat-card">
-          <span>Profit</span>
-          <strong id="reportProfit">Rs. 0</strong>
-        </div>
-
-        <div class="stat-card">
-          <span>Transactions</span>
-          <strong id="reportTransactions">0</strong>
-        </div>
-
-      </div>
-
-
-      <div class="dashboard-grid">
+      <div class="sale-layout">
 
         <div class="panel">
 
-          <h2>Top Selling Medicines</h2>
+          <form id="saleForm">
 
-          <div id="topMedicines"></div>
+            <div class="form-section-title">
+              <span>01</span>
+              Product Information
+            </div>
+
+            <div class="form-grid">
+
+              <div class="form-group full">
+                <label>Medicine / Stock *</label>
+                <select id="saleMedicine" required>
+                  <option value="">Select medicine</option>
+                </select>
+
+                <div id="availableStock" class="field-help">
+                  Select medicine to see available quantity.
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Quantity *</label>
+                <input id="saleQuantity" type="number" min="1" step="1" required>
+              </div>
+
+              <div class="form-group">
+                <label>Sale Price / Unit *</label>
+                <input id="salePrice" type="number" min="0" step="0.01" required>
+              </div>
+
+              <div class="form-group">
+                <label>Discount</label>
+                <input id="saleDiscount" type="number" min="0" step="0.01" value="0">
+              </div>
+
+              <div class="form-group">
+                <label>Payment Status</label>
+                <select id="paymentStatus">
+                  <option value="Paid">Paid</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Partial">Partial</option>
+                </select>
+              </div>
+
+            </div>
+
+
+            <div class="form-section-title">
+              <span>02</span>
+              Customer Information
+            </div>
+
+            <div class="form-grid">
+
+              <div class="form-group">
+                <label>Customer Name *</label>
+                <input id="customerName" type="text" value="Walk-in Customer" required>
+              </div>
+
+              <div class="form-group">
+                <label>Customer Phone</label>
+                <input id="customerPhone" type="tel" placeholder="03XXXXXXXXX">
+              </div>
+
+              <div class="form-group full">
+                <label>Sale Notes</label>
+                <textarea id="saleNotes" rows="3" placeholder="Optional notes..."></textarea>
+              </div>
+
+            </div>
+
+
+            <div class="sale-summary">
+
+              <div>
+                <span>Gross Sale</span>
+                <strong id="summaryGross">Rs. 0</strong>
+              </div>
+
+              <div>
+                <span>Discount</span>
+                <strong id="summaryDiscount">Rs. 0</strong>
+              </div>
+
+              <div>
+                <span>Total Sale</span>
+                <strong id="summaryTotal">Rs. 0</strong>
+              </div>
+
+              <div>
+                <span>Estimated Profit</span>
+                <strong id="summaryProfit" class="profit-text">Rs. 0</strong>
+              </div>
+
+            </div>
+
+
+            <button class="primary-btn full large-btn" type="submit">
+              💰 Complete Sale
+            </button>
+
+          </form>
 
         </div>
 
-        <div class="panel">
 
-          <h2>Monthly Profit</h2>
+        <div class="panel sale-info-panel">
 
-          <div id="monthlyProfit"></div>
+          <div class="info-icon">💡</div>
+          <h3>Automatic Calculation</h3>
+
+          <ul>
+            <li>Stock quantity is reduced automatically.</li>
+            <li>Purchase price is taken from inventory.</li>
+            <li>Profit is calculated automatically.</li>
+            <li>Complete sale history is saved.</li>
+            <li>Invoice number is generated automatically.</li>
+            <li>Data is synced to Firebase Cloud.</li>
+          </ul>
 
         </div>
 
@@ -552,118 +472,403 @@
 
 
     <!-- ================= HISTORY ================= -->
-
     <section id="page-history" class="page">
 
-      <div class="page-actions">
+      <div class="section-header">
+        <div>
+          <h2>Sales History</h2>
+          <p>Complete record of every transaction.</p>
+        </div>
 
-        <input
-          id="historySearch"
-          placeholder="Search activity..."
-        >
+        <button id="exportSalesBtn" class="secondary-btn">
+          ⬇ Export CSV
+        </button>
+      </div>
+
+
+      <div class="toolbar history-toolbar">
+
+        <div class="search-box">
+          🔍
+          <input id="historySearch" type="text" placeholder="Search invoice, medicine, customer...">
+        </div>
+
+        <input id="historyFrom" type="date">
+        <input id="historyTo" type="date">
+
+        <select id="historyPayment">
+          <option value="all">All Payments</option>
+          <option value="Paid">Paid</option>
+          <option value="Pending">Pending</option>
+          <option value="Partial">Partial</option>
+        </select>
 
       </div>
 
-      <div class="panel">
-        <div id="historyTable"></div>
+
+      <div class="panel table-panel">
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Invoice</th>
+                <th>Medicine</th>
+                <th>Customer</th>
+                <th>Qty</th>
+                <th>Total</th>
+                <th>Profit</th>
+                <th>Payment</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="salesTable"></tbody>
+          </table>
+        </div>
+
+        <div id="salesEmpty" class="empty-state hidden">
+          <div>🧾</div>
+          <h3>No sales found</h3>
+          <p>Your sales history will appear here.</p>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= CUSTOMERS ================= -->
+    <section id="page-customers" class="page">
+
+      <div class="section-header">
+        <div>
+          <h2>Customers</h2>
+          <p>Customer information automatically collected from sales.</p>
+        </div>
+      </div>
+
+
+      <div class="panel table-panel">
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Phone</th>
+                <th>Total Purchases</th>
+                <th>Total Profit</th>
+                <th>Transactions</th>
+                <th>Last Purchase</th>
+              </tr>
+            </thead>
+
+            <tbody id="customersTable"></tbody>
+          </table>
+        </div>
+
+        <div id="customersEmpty" class="empty-state hidden">
+          <div>👥</div>
+          <h3>No customers yet</h3>
+          <p>Customers will automatically appear after your first sale.</p>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= REPORTS ================= -->
+    <section id="page-reports" class="page">
+
+      <div class="section-header">
+        <div>
+          <h2>Reports & Analytics</h2>
+          <p>Automatic business performance calculations.</p>
+        </div>
+
+        <button id="exportAllBtn" class="secondary-btn">
+          ⬇ Export Data
+        </button>
+      </div>
+
+
+      <div class="report-cards">
+
+        <div class="report-card">
+          <span>Today</span>
+          <strong id="reportTodayProfit">Rs. 0</strong>
+          <small id="reportTodaySales">0 sales</small>
+        </div>
+
+        <div class="report-card">
+          <span>This Month</span>
+          <strong id="reportMonthProfit">Rs. 0</strong>
+          <small id="reportMonthSales">0 sales</small>
+        </div>
+
+        <div class="report-card">
+          <span>This Year</span>
+          <strong id="reportYearProfit">Rs. 0</strong>
+          <small id="reportYearSales">0 sales</small>
+        </div>
+
+        <div class="report-card">
+          <span>Inventory Value</span>
+          <strong id="reportInventoryValue">Rs. 0</strong>
+          <small>Purchase value of current stock</small>
+        </div>
+
+      </div>
+
+
+      <div class="dashboard-grid">
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>Top Products by Profit</h3>
+              <p>Products generating the highest profit</p>
+            </div>
+          </div>
+
+          <div id="topProducts" class="report-list"></div>
+        </div>
+
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>Last 7 Days</h3>
+              <p>Daily profit performance</p>
+            </div>
+          </div>
+
+          <div id="sevenDayReport" class="seven-day-chart"></div>
+        </div>
+
       </div>
 
     </section>
 
 
     <!-- ================= SETTINGS ================= -->
-
     <section id="page-settings" class="page">
 
-      <div class="panel">
-
-        <h2>Store Settings</h2>
-
-        <div class="form-grid">
-
-          <label>
-            Store Name
-            <input id="storeName">
-          </label>
-
-          <label>
-            Owner Name
-            <input id="ownerName">
-          </label>
-
-          <label>
-            Phone
-            <input id="storePhone">
-          </label>
-
-          <label>
-            Address
-            <input id="storeAddress">
-          </label>
-
-          <label>
-            Currency
-            <input id="currency" value="Rs.">
-          </label>
-
-          <label>
-            Default Minimum Stock
-            <input id="defaultMinStock" type="number" value="10">
-          </label>
-
-          <label>
-            Expiry Alert Days
-            <input id="expiryDays" type="number" value="30">
-          </label>
-
+      <div class="section-header">
+        <div>
+          <h2>Settings</h2>
+          <p>Manage your business profile and application preferences.</p>
         </div>
-
-        <button class="primary" id="saveSettings">
-          Save Settings
-        </button>
-
       </div>
 
 
-      <div class="panel">
+      <div class="settings-grid">
 
-        <h2>Account</h2>
+        <div class="panel">
 
-        <p id="accountInfo"></p>
+          <div class="panel-header">
+            <div>
+              <h3>Business Profile</h3>
+              <p>Update your business information.</p>
+            </div>
+          </div>
+
+          <form id="profileForm">
+
+            <div class="form-group">
+              <label>Your Name</label>
+              <input id="profileName" type="text" required>
+            </div>
+
+            <div class="form-group">
+              <label>Business Name</label>
+              <input id="profileBusiness" type="text" required>
+            </div>
+
+            <div class="form-group">
+              <label>Email</label>
+              <input id="profileEmail" type="email" disabled>
+            </div>
+
+            <button class="primary-btn" type="submit">
+              Save Profile
+            </button>
+
+          </form>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <div>
+              <h3>Appearance</h3>
+              <p>Customize the application theme.</p>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <strong>Dark Mode</strong>
+              <p>Use a darker interface.</p>
+            </div>
+
+            <label class="switch">
+              <input id="darkModeToggle" type="checkbox">
+              <span></span>
+            </label>
+          </div>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="panel-header">
+            <div>
+              <h3>Data Management</h3>
+              <p>Download a backup of your business data.</p>
+            </div>
+          </div>
+
+          <button id="settingsExportBtn" class="secondary-btn full">
+            ⬇ Download Complete Backup
+          </button>
+
+        </div>
 
       </div>
 
     </section>
 
   </main>
-
-</section>
-
-
-<!-- ================= MODAL ================= -->
-
-<div id="modal" class="modal hidden">
-
-  <div class="modal-box">
-
-    <div class="modal-header">
-
-      <h2 id="modalTitle">Form</h2>
-
-      <button id="closeModal">
-        ×
-      </button>
-
-    </div>
-
-    <div id="modalBody"></div>
-
-  </div>
-
 </div>
 
+
+<!-- ================= STOCK MODAL ================= -->
+<div id="stockModal" class="modal hidden">
+
+  <div class="modal-card">
+
+    <div class="modal-header">
+      <div>
+        <h2 id="stockModalTitle">Add Stock</h2>
+        <p>Enter medicine stock details.</p>
+      </div>
+
+      <button class="close-modal" data-close="stockModal">×</button>
+    </div>
+
+
+    <form id="stockForm">
+
+      <input id="stockId" type="hidden">
+
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label>Medicine Name *</label>
+          <input id="stockName" type="text" required placeholder="e.g. Vitamin Supplement">
+        </div>
+
+        <div class="form-group">
+          <label>Category *</label>
+          <select id="stockCategory" required>
+            <option value="Antibiotic">Antibiotic</option>
+            <option value="Vitamin">Vitamin</option>
+            <option value="Vaccine">Vaccine</option>
+            <option value="Supplement">Supplement</option>
+            <option value="Disinfectant">Disinfectant</option>
+            <option value="Feed Additive">Feed Additive</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Batch Number</label>
+          <input id="stockBatch" type="text" placeholder="Batch number">
+        </div>
+
+        <div class="form-group">
+          <label>Quantity *</label>
+          <input id="stockQuantity" type="number" min="0" step="1" required>
+        </div>
+
+        <div class="form-group">
+          <label>Unit</label>
+          <select id="stockUnit">
+            <option value="Bottle">Bottle</option>
+            <option value="Box">Box</option>
+            <option value="Pack">Pack</option>
+            <option value="Piece">Piece</option>
+            <option value="Vial">Vial</option>
+            <option value="Kg">Kg</option>
+            <option value="Liter">Liter</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Low Stock Alert At</label>
+          <input id="stockLow" type="number" min="0" step="1" value="5">
+        </div>
+
+        <div class="form-group">
+          <label>Purchase Price / Unit *</label>
+          <input id="stockBuyPrice" type="number" min="0" step="0.01" required>
+        </div>
+
+        <div class="form-group">
+          <label>Selling Price / Unit *</label>
+          <input id="stockSellPrice" type="number" min="0" step="0.01" required>
+        </div>
+
+        <div class="form-group">
+          <label>Supplier</label>
+          <input id="stockSupplier" type="text" placeholder="Supplier name">
+        </div>
+
+        <div class="form-group">
+          <label>Purchase Date</label>
+          <input id="stockPurchaseDate" type="date">
+        </div>
+
+        <div class="form-group">
+          <label>Expiry Date *</label>
+          <input id="stockExpiry" type="date" required>
+        </div>
+
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="stockNotes" rows="3" placeholder="Optional notes..."></textarea>
+        </div>
+
+      </div>
+
+
+      <div class="modal-actions">
+        <button type="button" class="secondary-btn" data-close="stockModal">
+          Cancel
+        </button>
+
+        <button type="submit" class="primary-btn">
+          Save Stock
+        </button>
+      </div>
+
+    </form>
+
+  </div>
+</div>
+
+
+<!-- TOAST -->
+<div id="toast" class="toast"></div>
 
 <script type="module" src="app.js"></script>
 
 </body>
-  </html>
+                  </html>
