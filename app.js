@@ -32,12 +32,12 @@ import {
 ========================================================= */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCkyj91dIxfyFq3ErGucMykxB6h0trplM",
+  apiKey: "AIzaSyCkyj91DkxfyFq3ErGucMykxB6h0trplM",
   authDomain: "poultry-medicine-manager-93b79.firebaseapp.com",
   projectId: "poultry-medicine-manager-93b79",
   storageBucket: "poultry-medicine-manager-93b79.firebasestorage.app",
   messagingSenderId: "623127969077",
-  appId: "1:623127969077:web:e7e4b8a2e25fc4e249607c"
+  appId: "1:623127969077:web:e7e4e4b8a2e25fc4e249607c"
 };
 
 const app = initializeApp(firebaseConfig);
