@@ -3,180 +3,233 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0f172a">
+
   <title>Poultry Medicine Manager</title>
+
+  <meta name="theme-color" content="#0f766e">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
 <!-- ================= AUTH ================= -->
-<div id="authView" class="auth-page">
+
+<div id="authScreen" class="auth-screen">
+
+  <div class="auth-brand">
+    <div class="brand-logo">🐔</div>
+    <h1>PoultryMed</h1>
+    <p>Medicine Management System</p>
+  </div>
 
   <div class="auth-card">
 
-    <div class="brand-auth">
-      <div class="brand-logo">PM</div>
-      <div>
-        <h1>Poultry Medicine</h1>
-        <p>Inventory & Sales Manager</p>
-      </div>
-    </div>
-
     <!-- LOGIN -->
+
     <div id="loginBox">
 
-      <h2>Welcome Back</h2>
-      <p class="auth-subtitle">Login to manage your poultry medicine business.</p>
+      <div class="auth-heading">
+        <h2>Welcome Back</h2>
+        <p>Login to manage your poultry medicine business.</p>
+      </div>
 
       <form id="loginForm">
 
         <label>Email</label>
-        <input id="loginEmail" type="email" placeholder="Enter your email" required>
+        <input
+          type="email"
+          id="loginEmail"
+          placeholder="Enter your email"
+          required
+        >
 
         <label>Password</label>
-        <div class="password-box">
-          <input id="loginPassword" type="password" placeholder="Enter password" required>
-          <button type="button" class="password-toggle" data-target="loginPassword">Show</button>
+
+        <div class="password-wrap">
+          <input
+            type="password"
+            id="loginPassword"
+            placeholder="Enter password"
+            required
+          >
+          <button type="button" class="password-toggle" data-target="loginPassword">
+            👁
+          </button>
         </div>
 
-        <button id="loginBtn" class="primary-btn auth-btn" type="submit">
-          <span class="btn-text">Login</span>
-          <span class="btn-loader"></span>
+        <button id="loginBtn" class="btn btn-primary btn-full" type="submit">
+          Logging in...
         </button>
 
       </form>
 
-      <div class="divider"><span>OR</span></div>
+      <div class="divider">
+        <span>OR</span>
+      </div>
 
-      <button id="googleLoginBtn" class="google-btn">
-        <span class="google-icon">G</span>
-        <span class="google-btn-text">Continue with Google</span>
-        <span class="btn-loader"></span>
+      <button id="googleLoginBtn" class="btn btn-google btn-full">
+        <span>G</span>
+        Continue with Google
       </button>
 
-      <p class="switch-auth">
+      <p class="auth-switch">
         Don't have an account?
-        <button id="showRegisterBtn">Create Account</button>
+        <button id="showRegisterBtn" class="link-btn">
+          Create Account
+        </button>
       </p>
 
     </div>
 
 
     <!-- REGISTER -->
+
     <div id="registerBox" class="hidden">
 
-      <h2>Create Account</h2>
-      <p class="auth-subtitle">Create your own private business account.</p>
+      <div class="auth-heading">
+        <h2>Create Account</h2>
+        <p>Create your private poultry medicine account.</p>
+      </div>
 
       <form id="registerForm">
 
         <label>Your Name</label>
-        <input id="registerName" type="text" placeholder="Enter your name" required>
+        <input
+          type="text"
+          id="registerName"
+          placeholder="Enter your name"
+          required
+        >
 
         <label>Business Name</label>
-        <input id="registerBusiness" type="text" placeholder="Poultry Medicine Business" required>
+        <input
+          type="text"
+          id="registerBusiness"
+          placeholder="Poultry Farm / Business"
+          required
+        >
 
         <label>Email</label>
-        <input id="registerEmail" type="email" placeholder="Enter email" required>
+        <input
+          type="email"
+          id="registerEmail"
+          placeholder="Enter your email"
+          required
+        >
 
         <label>Password</label>
-        <div class="password-box">
-          <input id="registerPassword" type="password" placeholder="Minimum 6 characters" required>
-          <button type="button" class="password-toggle" data-target="registerPassword">Show</button>
+
+        <div class="password-wrap">
+          <input
+            type="password"
+            id="registerPassword"
+            placeholder="Minimum 6 characters"
+            minlength="6"
+            required
+          >
+
+          <button type="button" class="password-toggle" data-target="registerPassword">
+            👁
+          </button>
         </div>
 
-        <button id="registerBtn" class="primary-btn auth-btn" type="submit">
-          <span class="btn-text">Create Account</span>
-          <span class="btn-loader"></span>
+        <button id="registerBtn" class="btn btn-primary btn-full" type="submit">
+          Create Account
         </button>
 
       </form>
 
-      <div class="divider"><span>OR</span></div>
+      <div class="divider">
+        <span>OR</span>
+      </div>
 
-      <button id="googleRegisterBtn" class="google-btn">
-        <span class="google-icon">G</span>
-        <span class="google-btn-text">Create with Google</span>
-        <span class="btn-loader"></span>
+      <button id="googleRegisterBtn" class="btn btn-google btn-full">
+        <span>G</span>
+        Sign up with Google
       </button>
 
-      <p class="switch-auth">
+      <p class="auth-switch">
         Already have an account?
-        <button id="showLoginBtn">Login</button>
+        <button id="showLoginBtn" class="link-btn">
+          Login
+        </button>
       </p>
 
     </div>
-
-    <div id="authMessage" class="auth-message"></div>
 
   </div>
 
 </div>
 
 
-<!-- ================= APP ================= -->
-<div id="appView" class="app hidden">
+<!-- ================= MAIN APP ================= -->
+
+<div id="appScreen" class="app-screen hidden">
 
   <!-- SIDEBAR -->
-  <aside id="sidebar" class="sidebar">
+
+  <aside class="sidebar" id="sidebar">
 
     <div class="sidebar-brand">
-      <div class="brand-logo small">PM</div>
+      <div class="brand-icon">🐔</div>
+
       <div>
-        <strong>Poultry Manager</strong>
-        <small>Inventory System</small>
+        <strong>PoultryMed</strong>
+        <small>Manager</small>
       </div>
     </div>
 
-    <nav>
+
+    <nav class="nav-menu">
 
       <button class="nav-item active" data-page="dashboard">
-        <span>📊</span> Dashboard
+        <span>🏠</span>
+        Dashboard
       </button>
 
       <button class="nav-item" data-page="inventory">
-        <span>📦</span> Inventory
+        <span>📦</span>
+        Inventory
       </button>
 
-      <button class="nav-item" data-page="sale">
-        <span>💰</span> New Sale
-      </button>
-
-      <button class="nav-item" data-page="history">
-        <span>🧾</span> Sales History
+      <button class="nav-item" data-page="sales">
+        <span>💰</span>
+        Sales
       </button>
 
       <button class="nav-item" data-page="customers">
-        <span>👥</span> Customers
+        <span>👥</span>
+        Customers
       </button>
 
-      <button class="nav-item" data-page="deliveries">
-        <span>🚚</span> Deliveries
+      <button class="nav-item" data-page="salesmen">
+        <span>🚚</span>
+        Salesmen
       </button>
 
       <button class="nav-item" data-page="reports">
-        <span>📈</span> Reports
-      </button>
-
-      <button class="nav-item" data-page="settings">
-        <span>⚙️</span> Settings
+        <span>📊</span>
+        Reports
       </button>
 
     </nav>
 
+
     <div class="sidebar-bottom">
 
-      <div class="sidebar-user">
-        <div id="sidebarAvatar" class="avatar">U</div>
-        <div>
-          <strong id="sidebarUserName">User</strong>
-          <small id="sidebarUserEmail">email</small>
-        </div>
-      </div>
+      <button class="nav-item" data-page="settings">
+        <span>⚙️</span>
+        Settings
+      </button>
 
-      <button id="sidebarLogoutBtn" class="logout-btn">
-        🚪 Logout
+      <button id="logoutBtn" class="nav-item logout-item">
+        <span>🚪</span>
+        Logout
       </button>
 
     </div>
@@ -185,56 +238,59 @@
 
 
   <!-- MAIN -->
+
   <main class="main-content">
 
     <!-- TOPBAR -->
+
     <header class="topbar">
 
-      <button id="mobileMenuBtn" class="mobile-menu">☰</button>
+      <button id="mobileMenuBtn" class="icon-btn">
+        ☰
+      </button>
 
-      <div>
+      <div class="page-heading">
         <h2 id="pageTitle">Dashboard</h2>
-        <p id="pageSubtitle">Business overview</p>
+        <p id="pageSubtitle">Overview of your medicine business</p>
       </div>
 
-      <div class="top-actions">
 
-        <button id="themeBtn" class="icon-btn" title="Theme">
-          🌙
+      <div class="topbar-actions">
+
+        <button id="quickSaleBtn" class="btn btn-primary">
+          ＋ New Sale
         </button>
 
-        <button id="quickSaleBtn" class="quick-sale-btn">
-          + New Sale
-        </button>
-
-        <div class="profile-wrap">
+        <div class="profile-area">
 
           <button id="profileBtn" class="profile-btn">
 
-            <div id="topAvatar" class="avatar">U</div>
+            <div class="avatar" id="profileAvatar">
+              U
+            </div>
 
-            <div class="profile-info">
-              <strong id="topUserName">User</strong>
-              <small>Account</small>
+            <div class="profile-text">
+              <strong id="profileName">User</strong>
+              <small id="profileEmail">email</small>
             </div>
 
             <span>⌄</span>
 
           </button>
 
-          <div id="profileMenu" class="profile-menu hidden">
 
-            <div class="profile-menu-head">
-              <div id="menuAvatar" class="avatar large">U</div>
-              <div>
-                <strong id="menuUserName">User</strong>
-                <small id="menuUserEmail">email</small>
-              </div>
+          <div id="profileDropdown" class="profile-dropdown hidden">
+
+            <div class="dropdown-user">
+              <strong id="dropdownName">User</strong>
+              <span id="dropdownEmail">email</span>
             </div>
 
-            <button data-page="settings">⚙️ Account Settings</button>
+            <button data-page="settings">
+              ⚙️ Settings
+            </button>
 
-            <button id="menuLogoutBtn" class="danger-menu">
+            <button id="dropdownLogout">
               🚪 Logout
             </button>
 
@@ -248,136 +304,242 @@
 
 
     <!-- ================= DASHBOARD ================= -->
+
     <section id="page-dashboard" class="page active-page">
 
-      <div class="page-heading">
+      <div class="welcome-banner">
 
         <div>
-          <h3>Dashboard Overview</h3>
-          <p>Monitor your stock, sales and profit.</p>
+          <span class="eyebrow">BUSINESS OVERVIEW</span>
+
+          <h1>
+            Welcome back, <span id="welcomeName">User</span> 👋
+          </h1>
+
+          <p>
+            Manage stock, sales, customers and profits from one place.
+          </p>
         </div>
 
-        <button id="dashboardAddStockBtn" class="primary-btn">
-          + Add Stock
+        <button id="dashboardAddStockBtn" class="btn btn-white">
+          ＋ Add Stock
         </button>
 
       </div>
 
+
+      <!-- MAIN STATS -->
+
       <div class="stats-grid">
 
-        <div class="stat-card">
-          <div class="stat-icon blue">📦</div>
-          <div>
+        <button class="stat-card clickable" data-dashboard-filter="all">
+
+          <div class="stat-icon teal">📦</div>
+
+          <div class="stat-content">
             <span>Total Stock Items</span>
-            <strong id="statItems">0</strong>
+            <strong id="totalStockItems">0</strong>
+            <small>View all inventory →</small>
           </div>
-        </div>
 
-        <div class="stat-card">
+        </button>
+
+
+        <button class="stat-card clickable" data-dashboard-filter="low">
+
           <div class="stat-icon orange">⚠️</div>
-          <div>
+
+          <div class="stat-content">
             <span>Low Stock</span>
-            <strong id="statLow">0</strong>
+            <strong id="lowStockCount">0</strong>
+            <small>Needs attention →</small>
           </div>
-        </div>
 
-        <div class="stat-card">
+        </button>
+
+
+        <button class="stat-card clickable" data-dashboard-filter="expired">
+
           <div class="stat-icon red">⛔</div>
-          <div>
+
+          <div class="stat-content">
             <span>Expired</span>
-            <strong id="statExpired">0</strong>
+            <strong id="expiredCount">0</strong>
+            <small>View expired →</small>
           </div>
-        </div>
 
-        <div class="stat-card">
-          <div class="stat-icon purple">⏳</div>
-          <div>
-            <span>Expiring Soon</span>
-            <strong id="statExpiring">0</strong>
+        </button>
+
+
+        <button class="stat-card clickable" data-dashboard-filter="soon">
+
+          <div class="stat-icon yellow">⏳</div>
+
+          <div class="stat-content">
+            <span>Expiry Soon</span>
+            <strong id="expirySoonCount">0</strong>
+            <small>Next 30 days →</small>
           </div>
-        </div>
 
-        <div class="stat-card">
-          <div class="stat-icon green">💵</div>
-          <div>
-            <span>Inventory Value</span>
-            <strong id="statInventoryValue">Rs. 0</strong>
+        </button>
+
+
+        <button class="stat-card clickable" data-dashboard-filter="out">
+
+          <div class="stat-icon gray">📭</div>
+
+          <div class="stat-content">
+            <span>Out of Stock</span>
+            <strong id="outStockCount">0</strong>
+            <small>View items →</small>
           </div>
-        </div>
 
-        <div class="stat-card">
-          <div class="stat-icon cyan">💰</div>
-          <div>
+        </button>
+
+
+        <button class="stat-card clickable" data-dashboard-filter="sales">
+
+          <div class="stat-icon blue">💰</div>
+
+          <div class="stat-content">
             <span>Total Sales</span>
-            <strong id="statSales">Rs. 0</strong>
+            <strong id="totalSales">Rs. 0</strong>
+            <small>View sales →</small>
           </div>
-        </div>
 
-        <div class="stat-card">
+        </button>
+
+
+        <button class="stat-card">
+
           <div class="stat-icon green">📈</div>
-          <div>
+
+          <div class="stat-content">
             <span>Total Profit</span>
-            <strong id="statProfit">Rs. 0</strong>
+            <strong id="totalProfit">Rs. 0</strong>
+            <small>All time profit</small>
           </div>
+
+        </button>
+
+
+        <button class="stat-card">
+
+          <div class="stat-icon purple">🏦</div>
+
+          <div class="stat-content">
+            <span>Inventory Value</span>
+            <strong id="inventoryValue">Rs. 0</strong>
+            <small>Purchase value</small>
+          </div>
+
+        </button>
+
+      </div>
+
+
+      <!-- QUICK ACTIONS -->
+
+      <div class="section-header">
+        <div>
+          <h3>Quick Actions</h3>
+          <p>Common tasks</p>
+        </div>
+      </div>
+
+      <div class="quick-actions">
+
+        <button id="quickAddStock" class="quick-action">
+          <span>📦</span>
+          <strong>Add Stock</strong>
+          <small>Add medicine</small>
+        </button>
+
+        <button id="quickNewSale" class="quick-action">
+          <span>💰</span>
+          <strong>New Sale</strong>
+          <small>Create invoice</small>
+        </button>
+
+        <button class="quick-action" data-page="customers">
+          <span>👤</span>
+          <strong>Customers</strong>
+          <small>View customers</small>
+        </button>
+
+        <button class="quick-action" data-page="reports">
+          <span>📊</span>
+          <strong>Reports</strong>
+          <small>View analytics</small>
+        </button>
+
+      </div>
+
+
+      <!-- ALERTS -->
+
+      <div class="two-column">
+
+        <div class="panel">
+
+          <div class="panel-header">
+
+            <div>
+              <h3>⚠️ Stock Alerts</h3>
+              <p>Items requiring attention</p>
+            </div>
+
+            <button class="text-btn" data-dashboard-filter="low">
+              View All →
+            </button>
+
+          </div>
+
+          <div id="dashboardAlerts" class="alert-list"></div>
+
         </div>
 
-        <div class="stat-card">
-          <div class="stat-icon yellow">📅</div>
-          <div>
-            <span>Today's Profit</span>
-            <strong id="statTodayProfit">Rs. 0</strong>
-          </div>
-        </div>
 
-        <div class="stat-card">
-          <div class="stat-icon violet">🗓️</div>
-          <div>
-            <span>Monthly Profit</span>
-            <strong id="statMonthProfit">Rs. 0</strong>
-          </div>
-        </div>
+        <div class="panel">
 
-        <div class="stat-card">
-          <div class="stat-icon pink">📆</div>
-          <div>
-            <span>Yearly Profit</span>
-            <strong id="statYearProfit">Rs. 0</strong>
+          <div class="panel-header">
+
+            <div>
+              <h3>⏳ Expiry Alerts</h3>
+              <p>Expired and upcoming medicines</p>
+            </div>
+
+            <button class="text-btn" data-dashboard-filter="soon">
+              View All →
+            </button>
+
           </div>
+
+          <div id="dashboardExpiry" class="alert-list"></div>
+
         </div>
 
       </div>
 
 
-      <div class="dashboard-columns">
+      <!-- RECENT SALES -->
 
-        <div class="panel">
+      <div class="panel">
 
-          <div class="panel-header">
-            <div>
-              <h3>Recent Sales</h3>
-              <p>Latest transactions</p>
-            </div>
+        <div class="panel-header">
 
-            <button class="text-btn" data-page="history">View All</button>
+          <div>
+            <h3>Recent Sales</h3>
+            <p>Latest transactions</p>
           </div>
 
-          <div id="recentSalesTable" class="table-wrap"></div>
+          <button class="text-btn" data-page="sales">
+            View All →
+          </button>
 
         </div>
 
-
-        <div class="panel">
-
-          <div class="panel-header">
-            <div>
-              <h3>Expiry Alerts</h3>
-              <p>Medicines requiring attention</p>
-            </div>
-          </div>
-
-          <div id="expiryAlerts"></div>
-
-        </div>
+        <div id="recentSalesTable" class="table-wrapper"></div>
 
       </div>
 
@@ -385,371 +547,221 @@
 
 
     <!-- ================= INVENTORY ================= -->
+
     <section id="page-inventory" class="page">
 
-      <div class="page-heading">
+      <div class="page-toolbar">
 
         <div>
-          <h3>Medicine Inventory</h3>
-          <p>Manage all your available stock.</p>
+          <h2>Inventory</h2>
+          <p>Manage all medicines and batches.</p>
         </div>
 
-        <button id="addStockBtn" class="primary-btn">
-          + Add Stock
+        <button id="inventoryAddBtn" class="btn btn-primary">
+          ＋ Add Medicine
         </button>
 
       </div>
 
+
       <div class="filter-bar">
 
-        <input id="inventorySearch" type="search" placeholder="🔎 Search medicine, batch, supplier...">
+        <div class="search-box">
+          🔎
+          <input id="inventorySearch" placeholder="Search medicine, batch, supplier...">
+        </div>
 
-        <select id="inventoryCategoryFilter">
-          <option value="">All Categories</option>
-          <option>Antibiotic</option>
-          <option>Vaccine</option>
-          <option>Vitamin</option>
-          <option>Mineral</option>
-          <option>Anticoccidial</option>
-          <option>Other</option>
-        </select>
-
-        <select id="inventoryStatusFilter">
-          <option value="">All Status</option>
+        <select id="inventoryFilter">
+          <option value="all">All Stock</option>
           <option value="low">Low Stock</option>
+          <option value="out">Out of Stock</option>
           <option value="expired">Expired</option>
-          <option value="expiring">Expiring Soon</option>
-          <option value="available">Available</option>
+          <option value="soon">Expiry Soon</option>
+          <option value="good">In Stock</option>
+        </select>
+
+        <select id="inventoryCategory">
+          <option value="all">All Categories</option>
         </select>
 
       </div>
 
-      <div class="panel">
 
-        <div id="inventoryTable" class="table-wrap"></div>
-
-      </div>
+      <div id="inventoryTable" class="table-wrapper"></div>
 
     </section>
 
 
-    <!-- ================= SALE ================= -->
-    <section id="page-sale" class="page">
+    <!-- ================= SALES ================= -->
 
-      <div class="page-heading">
+    <section id="page-sales" class="page">
 
-        <div>
-          <h3>Create New Sale</h3>
-          <p>Record medicine delivery and sale.</p>
-        </div>
-
-      </div>
-
-      <div class="form-panel">
-
-        <form id="saleForm">
-
-          <div class="form-section-title">Medicine Details</div>
-
-          <div class="form-grid">
-
-            <div class="form-group full">
-              <label>Select Medicine / Stock *</label>
-              <select id="saleInventory" required>
-                <option value="">Select available stock</option>
-              </select>
-              <small id="stockAvailableText" class="field-help"></small>
-            </div>
-
-            <div class="form-group">
-              <label>Quantity *</label>
-              <input id="saleQuantity" type="number" min="1" step="1" required>
-            </div>
-
-            <div class="form-group">
-              <label>Sale Price / Unit *</label>
-              <input id="salePrice" type="number" min="0" step="0.01" required>
-            </div>
-
-          </div>
-
-
-          <div class="form-section-title">Customer Details</div>
-
-          <div class="form-grid">
-
-            <div class="form-group">
-              <label>Customer Name *</label>
-              <input id="customerName" type="text" placeholder="Customer / Farm name" required>
-            </div>
-
-            <div class="form-group">
-              <label>Customer Number</label>
-              <input id="customerPhone" type="tel" placeholder="03XX XXXXXXX">
-            </div>
-
-            <div class="form-group full">
-              <label>Customer Address</label>
-              <input id="customerAddress" type="text" placeholder="Address / Farm location">
-            </div>
-
-          </div>
-
-
-          <div class="form-section-title">Salesman / Delivery Details</div>
-
-          <div class="form-grid">
-
-            <div class="form-group">
-              <label>Salesman Name *</label>
-              <input id="salesmanName" type="text" placeholder="Salesman name" required>
-            </div>
-
-            <div class="form-group">
-              <label>Salesman Number</label>
-              <input id="salesmanPhone" type="tel" placeholder="03XX XXXXXXX">
-            </div>
-
-            <div class="form-group">
-              <label>Delivery Number</label>
-              <input id="deliveryNumber" type="text" placeholder="e.g. DEL-1001">
-            </div>
-
-            <div class="form-group">
-              <label>Sale / Delivery Date *</label>
-              <input id="saleDate" type="date" required>
-            </div>
-
-          </div>
-
-
-          <div class="form-section-title">Payment Details</div>
-
-          <div class="form-grid">
-
-            <div class="form-group">
-              <label>Discount</label>
-              <input id="saleDiscount" type="number" min="0" step="0.01" value="0">
-            </div>
-
-            <div class="form-group">
-              <label>Payment Status</label>
-              <select id="paymentStatus">
-                <option value="Paid">Paid</option>
-                <option value="Pending">Pending</option>
-                <option value="Partial">Partial</option>
-              </select>
-            </div>
-
-            <div class="form-group full">
-              <label>Notes</label>
-              <textarea id="saleNotes" rows="3" placeholder="Additional notes..."></textarea>
-            </div>
-
-          </div>
-
-
-          <div class="sale-summary">
-
-            <div>
-              <span>Gross Sale</span>
-              <strong id="saleGross">Rs. 0</strong>
-            </div>
-
-            <div>
-              <span>Discount</span>
-              <strong id="saleDiscountDisplay">Rs. 0</strong>
-            </div>
-
-            <div>
-              <span>Total Sale</span>
-              <strong id="saleTotal">Rs. 0</strong>
-            </div>
-
-            <div>
-              <span>Estimated Profit</span>
-              <strong id="saleProfit">Rs. 0</strong>
-            </div>
-
-          </div>
-
-
-          <button id="completeSaleBtn" class="primary-btn large-btn" type="submit">
-            <span class="btn-text">Complete Sale & Delivery</span>
-            <span class="btn-loader"></span>
-          </button>
-
-        </form>
-
-      </div>
-
-    </section>
-
-
-    <!-- ================= HISTORY ================= -->
-    <section id="page-history" class="page">
-
-      <div class="page-heading">
+      <div class="page-toolbar">
 
         <div>
-          <h3>Sales History</h3>
-          <p>Complete record of all sales and profits.</p>
+          <h2>Sales</h2>
+          <p>Sales history, invoices and profit.</p>
         </div>
 
-        <button id="exportSalesBtn" class="secondary-btn">
-          ⬇ Export CSV
+        <button id="salesNewBtn" class="btn btn-primary">
+          ＋ New Sale
         </button>
 
       </div>
 
+
+      <div class="sales-summary-grid">
+
+        <div class="mini-stat">
+          <span>Today's Sales</span>
+          <strong id="todaySales">Rs. 0</strong>
+        </div>
+
+        <div class="mini-stat">
+          <span>Today's Profit</span>
+          <strong id="todayProfit">Rs. 0</strong>
+        </div>
+
+        <div class="mini-stat">
+          <span>This Month</span>
+          <strong id="monthSales">Rs. 0</strong>
+        </div>
+
+        <div class="mini-stat">
+          <span>This Year</span>
+          <strong id="yearSales">Rs. 0</strong>
+        </div>
+
+      </div>
+
+
       <div class="filter-bar">
 
-        <input id="historySearch" type="search" placeholder="🔎 Search customer, medicine, salesman...">
+        <div class="search-box">
+          🔎
+          <input id="salesSearch" placeholder="Search customer, medicine, invoice...">
+        </div>
 
-        <input id="historyFrom" type="date">
-
-        <input id="historyTo" type="date">
-
-        <select id="historyPayment">
-          <option value="">All Payments</option>
-          <option>Paid</option>
-          <option>Pending</option>
-          <option>Partial</option>
+        <select id="salesPeriod">
+          <option value="all">All Sales</option>
+          <option value="today">Today</option>
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
         </select>
 
       </div>
 
-      <div class="panel">
-        <div id="historyTable" class="table-wrap"></div>
-      </div>
+
+      <div id="salesTable" class="table-wrapper"></div>
 
     </section>
 
 
     <!-- ================= CUSTOMERS ================= -->
+
     <section id="page-customers" class="page">
 
-      <div class="page-heading">
+      <div class="page-toolbar">
 
         <div>
-          <h3>Customers</h3>
-          <p>Customer purchase history and totals.</p>
+          <h2>Customers</h2>
+          <p>Customer purchase history and balances.</p>
         </div>
-
-      </div>
-
-      <div class="panel">
-        <div id="customersTable" class="table-wrap"></div>
-      </div>
-
-    </section>
-
-
-    <!-- ================= DELIVERIES ================= -->
-    <section id="page-deliveries" class="page">
-
-      <div class="page-heading">
-
-        <div>
-          <h3>Salesman Deliveries</h3>
-          <p>Track which salesman delivered what, when and to whom.</p>
-        </div>
-
-        <button id="exportDeliveriesBtn" class="secondary-btn">
-          ⬇ Export CSV
-        </button>
 
       </div>
 
       <div class="filter-bar">
 
-        <input id="deliverySearch" type="search" placeholder="🔎 Search salesman, customer, medicine...">
-
-        <input id="deliveryFrom" type="date">
-
-        <input id="deliveryTo" type="date">
-
-      </div>
-
-      <div class="delivery-summary-grid">
-
-        <div class="mini-card">
-          <span>Total Deliveries</span>
-          <strong id="deliveryCount">0</strong>
-        </div>
-
-        <div class="mini-card">
-          <span>Total Quantity Delivered</span>
-          <strong id="deliveryQuantity">0</strong>
-        </div>
-
-        <div class="mini-card">
-          <span>Delivery Sales</span>
-          <strong id="deliverySales">Rs. 0</strong>
-        </div>
-
-        <div class="mini-card">
-          <span>Delivery Profit</span>
-          <strong id="deliveryProfit">Rs. 0</strong>
+        <div class="search-box">
+          🔎
+          <input id="customerSearch" placeholder="Search customer...">
         </div>
 
       </div>
 
-      <div class="panel">
-        <div id="deliveriesTable" class="table-wrap"></div>
+      <div id="customersGrid" class="people-grid"></div>
+
+    </section>
+
+
+    <!-- ================= SALESMEN ================= -->
+
+    <section id="page-salesmen" class="page">
+
+      <div class="page-toolbar">
+
+        <div>
+          <h2>Salesmen & Delivery</h2>
+          <p>Track deliveries and salesman performance.</p>
+        </div>
+
       </div>
+
+      <div class="filter-bar">
+
+        <div class="search-box">
+          🔎
+          <input id="salesmanSearch" placeholder="Search salesman...">
+        </div>
+
+      </div>
+
+      <div id="salesmenGrid" class="people-grid"></div>
 
     </section>
 
 
     <!-- ================= REPORTS ================= -->
+
     <section id="page-reports" class="page">
 
-      <div class="page-heading">
+      <div class="page-toolbar">
 
         <div>
-          <h3>Business Reports</h3>
-          <p>Automatic sales and profit analysis.</p>
+          <h2>Reports</h2>
+          <p>Business performance and profit reports.</p>
         </div>
+
+        <button id="exportBtn" class="btn btn-secondary">
+          ↓ Export CSV
+        </button>
 
       </div>
 
-      <div class="report-cards">
+
+      <div class="report-grid">
 
         <div class="report-card">
-          <span>Today</span>
+          <span>Today Profit</span>
           <strong id="reportTodayProfit">Rs. 0</strong>
-          <small>Profit</small>
         </div>
 
         <div class="report-card">
-          <span>This Month</span>
+          <span>This Month Profit</span>
           <strong id="reportMonthProfit">Rs. 0</strong>
-          <small>Profit</small>
         </div>
 
         <div class="report-card">
-          <span>This Year</span>
+          <span>This Year Profit</span>
           <strong id="reportYearProfit">Rs. 0</strong>
-          <small>Profit</small>
         </div>
 
         <div class="report-card">
-          <span>All Time</span>
-          <strong id="reportAllProfit">Rs. 0</strong>
-          <small>Profit</small>
+          <span>Total Profit</span>
+          <strong id="reportTotalProfit">Rs. 0</strong>
         </div>
 
       </div>
 
-      <div class="dashboard-columns">
+
+      <div class="two-column">
 
         <div class="panel">
 
           <div class="panel-header">
             <div>
               <h3>Top Medicines</h3>
-              <p>Based on quantity sold</p>
+              <p>Best selling medicines</p>
             </div>
           </div>
 
@@ -757,12 +769,13 @@
 
         </div>
 
+
         <div class="panel">
 
           <div class="panel-header">
             <div>
               <h3>Top Salesmen</h3>
-              <p>Based on deliveries</p>
+              <p>Delivery performance</p>
             </div>
           </div>
 
@@ -772,84 +785,50 @@
 
       </div>
 
-      <div class="panel">
-
-        <div class="panel-header">
-          <div>
-            <h3>Recent 7-Day Profit</h3>
-            <p>Daily business performance</p>
-          </div>
-        </div>
-
-        <div id="profitChart" class="simple-chart"></div>
-
-      </div>
-
     </section>
 
 
     <!-- ================= SETTINGS ================= -->
+
     <section id="page-settings" class="page">
 
-      <div class="page-heading">
+      <div class="page-toolbar">
 
         <div>
-          <h3>Account Settings</h3>
-          <p>Manage your business profile.</p>
+          <h2>Settings</h2>
+          <p>Manage your account and business profile.</p>
         </div>
 
       </div>
 
-      <div class="settings-grid">
 
-        <div class="form-panel">
+      <div class="settings-card">
 
-          <h3>Business Profile</h3>
+        <div class="settings-avatar" id="settingsAvatar">
+          U
+        </div>
 
-          <form id="profileForm">
+        <div class="settings-info">
 
-            <div class="form-group">
-              <label>Your Name</label>
-              <input id="profileName" type="text" required>
-            </div>
-
-            <div class="form-group">
-              <label>Business Name</label>
-              <input id="profileBusiness" type="text" required>
-            </div>
-
-            <div class="form-group">
-              <label>Email</label>
-              <input id="profileEmail" type="email" readonly>
-            </div>
-
-            <button id="saveProfileBtn" class="primary-btn">
-              Save Profile
-            </button>
-
-          </form>
+          <h3 id="settingsName">User</h3>
+          <p id="settingsEmail">email</p>
+          <p id="settingsBusiness">Business</p>
 
         </div>
 
-        <div class="form-panel account-info">
+      </div>
 
+
+      <div class="settings-card">
+
+        <div>
           <h3>Account</h3>
-
-          <div class="account-row">
-            <span>Login Provider</span>
-            <strong id="accountProvider">Email</strong>
-          </div>
-
-          <div class="account-row">
-            <span>Account ID</span>
-            <strong id="accountUid">-</strong>
-          </div>
-
-          <button id="settingsLogoutBtn" class="logout-large">
-            🚪 Logout Account
-          </button>
-
+          <p>Your account is protected by Firebase Authentication.</p>
         </div>
+
+        <button id="settingsLogout" class="btn btn-danger">
+          🚪 Logout
+        </button>
 
       </div>
 
@@ -861,97 +840,98 @@
 
 
 <!-- ================= STOCK MODAL ================= -->
+
 <div id="stockModal" class="modal hidden">
 
-  <div class="modal-box">
+  <div class="modal-box large">
 
     <div class="modal-header">
 
       <div>
-        <h3 id="stockModalTitle">Add Stock</h3>
-        <p>Add medicine to inventory.</p>
+        <h2 id="stockModalTitle">Add Medicine</h2>
+        <p>Add medicine stock and batch information.</p>
       </div>
 
-      <button class="modal-close" data-close="stockModal">×</button>
+      <button class="modal-close" data-close="stockModal">
+        ×
+      </button>
 
     </div>
 
+
     <form id="stockForm">
 
-      <input id="stockId" type="hidden">
+      <input type="hidden" id="stockId">
 
       <div class="form-grid">
 
         <div class="form-group">
           <label>Medicine Name *</label>
-          <input id="stockName" type="text" required>
+          <input id="medicineName" required>
         </div>
 
         <div class="form-group">
           <label>Category *</label>
-          <select id="stockCategory" required>
-            <option value="">Select Category</option>
-            <option>Antibiotic</option>
-            <option>Vaccine</option>
-            <option>Vitamin</option>
-            <option>Mineral</option>
-            <option>Anticoccidial</option>
-            <option>Other</option>
-          </select>
+          <input id="medicineCategory" placeholder="Antibiotic, Vitamin..." required>
         </div>
 
         <div class="form-group">
-          <label>Batch Number</label>
-          <input id="stockBatch" type="text">
+          <label>Batch Number *</label>
+          <input id="batchNumber" required>
         </div>
 
         <div class="form-group">
-          <label>Quantity *</label>
-          <input id="stockQuantity" type="number" min="0" step="1" required>
-        </div>
-
-        <div class="form-group">
-          <label>Unit</label>
-          <select id="stockUnit">
-            <option>Pieces</option>
-            <option>Bottles</option>
-            <option>Boxes</option>
-            <option>Packets</option>
-            <option>Vials</option>
-            <option>Kg</option>
-            <option>Liters</option>
-            <option>Other</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>Purchase Price / Unit *</label>
-          <input id="purchasePrice" type="number" min="0" step="0.01" required>
-        </div>
-
-        <div class="form-group">
-          <label>Sale Price / Unit *</label>
-          <input id="defaultSalePrice" type="number" min="0" step="0.01" required>
-        </div>
-
-        <div class="form-group">
-          <label>Low Stock Alert At</label>
-          <input id="lowStockThreshold" type="number" min="0" step="1" value="10">
+          <label>Company / Manufacturer</label>
+          <input id="manufacturer">
         </div>
 
         <div class="form-group">
           <label>Supplier</label>
-          <input id="supplier" type="text">
+          <input id="supplier">
         </div>
 
         <div class="form-group">
-          <label>Purchase Date</label>
-          <input id="purchaseDate" type="date">
+          <label>Purchase Date *</label>
+          <input id="purchaseDate" type="date" required>
         </div>
 
         <div class="form-group">
-          <label>Expiry Date</label>
-          <input id="expiryDate" type="date">
+          <label>Expiry Date *</label>
+          <input id="expiryDate" type="date" required>
+        </div>
+
+        <div class="form-group">
+          <label>Quantity *</label>
+          <input id="quantity" type="number" min="0" step="0.01" required>
+        </div>
+
+        <div class="form-group">
+          <label>Unit</label>
+          <select id="unit">
+            <option>Bottles</option>
+            <option>Packs</option>
+            <option>Boxes</option>
+            <option>Tablets</option>
+            <option>Vials</option>
+            <option>Kg</option>
+            <option>Liters</option>
+            <option>Pieces</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Purchase Price *</label>
+          <input id="buyPrice" type="number" min="0" step="0.01" required>
+        </div>
+
+        <div class="form-group">
+          <label>Sale Price *</label>
+          <input id="salePrice" type="number" min="0" step="0.01" required>
+        </div>
+
+        <div class="form-group">
+          <label>Minimum Stock Level</label>
+          <input id="minStock" type="number" min="0" value="20">
         </div>
 
         <div class="form-group full">
@@ -961,10 +941,18 @@
 
       </div>
 
-      <button id="saveStockBtn" class="primary-btn large-btn" type="submit">
-        <span class="btn-text">Save Stock</span>
-        <span class="btn-loader"></span>
-      </button>
+
+      <div class="modal-actions">
+
+        <button type="button" class="btn btn-secondary" data-close="stockModal">
+          Cancel
+        </button>
+
+        <button type="submit" class="btn btn-primary">
+          Save Medicine
+        </button>
+
+      </div>
 
     </form>
 
@@ -973,27 +961,174 @@
 </div>
 
 
-<!-- ================= VIEW SALE MODAL ================= -->
-<div id="viewSaleModal" class="modal hidden">
+<!-- ================= SALE MODAL ================= -->
 
-  <div class="modal-box invoice-box">
+<div id="saleModal" class="modal hidden">
+
+  <div class="modal-box large">
 
     <div class="modal-header">
 
       <div>
-        <h3>Sale / Delivery Details</h3>
-        <p>Complete transaction record.</p>
+        <h2>New Sale</h2>
+        <p>Stock will automatically reduce after sale.</p>
       </div>
 
-      <button class="modal-close" data-close="viewSaleModal">×</button>
+      <button class="modal-close" data-close="saleModal">
+        ×
+      </button>
 
     </div>
 
-    <div id="saleDetailsContent"></div>
 
-    <div class="modal-actions">
-      <button id="printSaleBtn" class="primary-btn">🖨 Print Invoice</button>
-      <button class="secondary-btn" data-close="viewSaleModal">Close</button>
+    <form id="saleForm">
+
+      <div class="form-grid">
+
+        <div class="form-group full">
+          <label>Medicine / Batch *</label>
+          <select id="saleInventory" required>
+            <option value="">Select medicine</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Customer Name *</label>
+          <input id="customerName" required>
+        </div>
+
+        <div class="form-group">
+          <label>Customer Phone</label>
+          <input id="customerPhone">
+        </div>
+
+        <div class="form-group">
+          <label>Salesman / Delivery Person</label>
+          <input id="salesmanName">
+        </div>
+
+        <div class="form-group">
+          <label>Salesman Phone</label>
+          <input id="salesmanPhone">
+        </div>
+
+        <div class="form-group">
+          <label>Quantity *</label>
+          <input id="saleQuantity" type="number" min="0.01" step="0.01" required>
+          <small id="availableStock"></small>
+        </div>
+
+        <div class="form-group">
+          <label>Sale Price / Unit *</label>
+          <input id="saleUnitPrice" type="number" min="0" step="0.01" required>
+        </div>
+
+        <div class="form-group">
+          <label>Discount</label>
+          <input id="saleDiscount" type="number" min="0" step="0.01" value="0">
+        </div>
+
+        <div class="form-group">
+          <label>Delivery Date *</label>
+          <input id="deliveryDate" type="date" required>
+        </div>
+
+        <div class="form-group">
+          <label>Payment Status</label>
+          <select id="paymentStatus">
+            <option value="paid">Paid</option>
+            <option value="partial">Partial</option>
+            <option value="unpaid">Unpaid</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Paid Amount</label>
+          <input id="paidAmount" type="number" min="0" step="0.01" value="0">
+        </div>
+
+        <div class="form-group">
+          <label>Invoice Number</label>
+          <input id="invoiceNumber" readonly>
+        </div>
+
+        <div class="form-group full">
+          <label>Notes</label>
+          <textarea id="saleNotes" rows="3"></textarea>
+        </div>
+
+      </div>
+
+
+      <div class="sale-preview">
+
+        <div>
+          <span>Subtotal</span>
+          <strong id="saleSubtotal">Rs. 0</strong>
+        </div>
+
+        <div>
+          <span>Discount</span>
+          <strong id="saleDiscountPreview">Rs. 0</strong>
+        </div>
+
+        <div class="grand-total">
+          <span>Grand Total</span>
+          <strong id="saleGrandTotal">Rs. 0</strong>
+        </div>
+
+      </div>
+
+
+      <div class="modal-actions">
+
+        <button type="button" class="btn btn-secondary" data-close="saleModal">
+          Cancel
+        </button>
+
+        <button type="submit" class="btn btn-primary">
+          ✓ Complete Sale
+        </button>
+
+      </div>
+
+    </form>
+
+  </div>
+
+</div>
+
+
+<!-- ================= INVOICE MODAL ================= -->
+
+<div id="invoiceModal" class="modal hidden">
+
+  <div class="modal-box invoice-modal">
+
+    <div class="modal-header no-print">
+
+      <h2>Customer Invoice</h2>
+
+      <button class="modal-close" data-close="invoiceModal">
+        ×
+      </button>
+
+    </div>
+
+
+    <div id="invoiceContent" class="invoice-paper"></div>
+
+
+    <div class="modal-actions no-print">
+
+      <button class="btn btn-secondary" data-close="invoiceModal">
+        Close
+      </button>
+
+      <button id="printInvoiceBtn" class="btn btn-primary">
+        🖨 Print Invoice
+      </button>
+
     </div>
 
   </div>
@@ -1002,10 +1137,11 @@
 
 
 <!-- ================= TOAST ================= -->
-<div id="toastContainer" class="toast-container"></div>
+
+<div id="toastContainer"></div>
 
 
 <script type="module" src="app.js"></script>
 
 </body>
-        </html>
+              </html>
