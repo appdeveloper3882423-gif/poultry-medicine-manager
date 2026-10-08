@@ -9,10 +9,28 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
+
     match /users/{userId} {
 
       allow read, write:
         if isOwner(userId);
+
+
+      match /inventory/{itemId} {
+
+        allow read, write:
+          if isOwner(userId);
+
+      }
+
+
+      match /sales/{saleId} {
+
+        allow read, write:
+          if isOwner(userId);
+
+      }
+
 
       match /{document=**} {
 
@@ -20,6 +38,9 @@ service cloud.firestore {
           if isOwner(userId);
 
       }
+
     }
+
   }
+
 }
