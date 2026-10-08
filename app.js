@@ -27,9 +27,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
 
-/* =========================================================
-   FIREBASE CONFIG
-========================================================= */
+/* =====================================================
+   FIREBASE
+===================================================== */
 
 const firebaseConfig = {
   apiKey: "AIzaSyCkyj91iDkxfyFq3ErGucMykxB6h0trplM",
@@ -40,10 +40,10 @@ const firebaseConfig = {
   appId: "1:623127969077:web:e7e4e4b8a2e25fc4e249607c"
 };
 
-const app = initializeApp(firebaseConfig);
+const firebaseApp = initializeApp(firebaseConfig);
 
-const auth = getAuth(app);
-const db = getFirestore(app);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -51,102 +51,49 @@ googleProvider.setCustomParameters({
   prompt: "select_account"
 });
 
-
-/* =========================================================
-   PERSISTENT LOGIN
-========================================================= */
-
-setPersistence(auth, browserLocalPersistence)
-  .catch(error => {
-    console.error("Persistence error:", error);
-  });
+await setPersistence(auth, browserLocalPersistence);
 
 
-/* =========================================================
+/* =====================================================
    STATE
-========================================================= */
+===================================================== */
 
 let currentUser = null;
-let currentProfile = null;
-
 let inventory = [];
 let sales = [];
+let unsubInventory = null;
+let unsubSales = null;
 
-let inventoryUnsubscribe = null;
-let salesUnsubscribe = null;
-let profileUnsubscribe = null;
-
-let currentSaleForPrint = null;
+let currentInvoice = null;
 
 
-/* =========================================================
-   HELPERS
-========================================================= */
+/* =====================================================
+   DOM HELPERS
+===================================================== */
 
 const $ = id => document.getElementById(id);
 
-function money(value) {
-  const n = Number(value || 0);
-  return "Rs. " + n.toLocaleString("en-PK", {
+const money = value => {
+  return "Rs. " + Number(value || 0).toLocaleString("en-PK", {
     maximumFractionDigits: 2
   });
-}
+};
 
-function todayString() {
+const todayString = () => {
   const d = new Date();
+  return d.toISOString().slice(0, 10);
+};
 
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
-function dateFromTimestamp(timestamp) {
-  if (!timestamp) return "-";
-
-  const d = new Date(Number(timestamp));
-
-  return d.toLocaleDateString("en-PK", {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
-}
-
-function dateTimeFromTimestamp(timestamp) {
-  if (!timestamp) return "-";
-
-  const d = new Date(Number(timestamp));
-
-  return d.toLocaleString("en-PK", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  });
-}
-
-function escapeHTML(value) {
-
+const escapeHTML = value => {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
+};
 
-function getInitial(name) {
-
-  const text = String(name || "U").trim();
-
-  return text
-    ? text.charAt(0).toUpperCase()
-    : "U";
-}
-
-function showToast(message, type = "success") {
-
-  const container = $("toastContainer");
+const showToast = (message, type = "success") => {
 
   const toast = document.createElement("div");
 
@@ -154,171 +101,53 @@ function showToast(message, type = "success") {
 
   toast.textContent = message;
 
-  container.appendChild(toast);
+  $("toastContainer").appendChild(toast);
 
   setTimeout(() => {
     toast.remove();
   }, 3500);
-}
+};
 
-function setButtonLoading(button, loading, text) {
+
+const showModal = id => {
+  $(id).classList.remove("hidden");
+};
+
+const hideModal = id => {
+  $(id).classList.add("hidden");
+};
+
+
+/* =====================================================
+   AUTH
+===================================================== */
+
+function setAuthLoading(button, loading, normalText) {
 
   if (!button) return;
 
-  if (loading) {
+  button.disabled = loading;
 
-    button.classList.add("loading");
-    button.disabled = true;
-
-  } else {
-
-    button.classList.remove("loading");
-    button.disabled = false;
-  }
-
-  if (text) {
-
-    const textElement = button.querySelector(".btn-text");
-
-    if (textElement) {
-      textElement.textContent = text;
-    }
-  }
-}
-
-function authErrorMessage(error) {
-
-  const code = error?.code || "";
-
-  const messages = {
-
-    "auth/invalid-email":
-      "Email address is not valid.",
-
-    "auth/user-not-found":
-      "No account exists with this email.",
-
-    "auth/wrong-password":
-      "Incorrect password.",
-
-    "auth/invalid-credential":
-      "Email or password is incorrect.",
-
-    "auth/email-already-in-use":
-      "This email is already registered.",
-
-    "auth/weak-password":
-      "Password should contain at least 6 characters.",
-
-    "auth/popup-closed-by-user":
-      "Google login was cancelled.",
-
-    "auth/popup-blocked":
-      "Google popup was blocked by the browser.",
-
-    "auth/unauthorized-domain":
-      "This website domain is not authorized in Firebase.",
-
-    "auth/account-exists-with-different-credential":
-      "This email already uses another login method."
-
-  };
-
-  return messages[code] || error?.message || "Something went wrong.";
+  button.textContent = loading
+    ? normalText + "..."
+    : normalText;
 }
 
 
-/* =========================================================
-   AUTH UI
-========================================================= */
+/* Login */
 
-function showAuthMessage(message, type = "error") {
+$("loginForm").addEventListener("submit", async e => {
 
-  const box = $("authMessage");
+  e.preventDefault();
 
-  box.textContent = message;
-
-  box.style.color =
-    type === "success"
-      ? "var(--success)"
-      : "var(--danger)";
-}
-
-function clearAuthMessage() {
-  $("authMessage").textContent = "";
-}
-
-$("showRegisterBtn").addEventListener("click", () => {
-
-  $("loginBox").classList.add("hidden");
-  $("registerBox").classList.remove("hidden");
-
-  clearAuthMessage();
-});
-
-$("showLoginBtn").addEventListener("click", () => {
-
-  $("registerBox").classList.add("hidden");
-  $("loginBox").classList.remove("hidden");
-
-  clearAuthMessage();
-});
-
-
-/* =========================================================
-   PASSWORD SHOW/HIDE
-========================================================= */
-
-document.querySelectorAll(".password-toggle").forEach(button => {
-
-  button.addEventListener("click", () => {
-
-    const input = $(button.dataset.target);
-
-    if (input.type === "password") {
-
-      input.type = "text";
-      button.textContent = "Hide";
-
-    } else {
-
-      input.type = "password";
-      button.textContent = "Show";
-    }
-  });
-
-});
-
-
-/* =========================================================
-   EMAIL LOGIN
-========================================================= */
-
-$("loginForm").addEventListener("submit", async event => {
-
-  event.preventDefault();
-
-  const button = $("loginBtn");
+  const btn = $("loginBtn");
 
   const email = $("loginEmail").value.trim();
   const password = $("loginPassword").value;
 
-  if (!email || !password) {
-    showAuthMessage("Please enter email and password.");
-    return;
-  }
-
-  setButtonLoading(button, true);
-
-  const text = button.querySelector(".btn-text");
-
-  if (text) {
-    text.textContent = "Logging in...";
-  }
-
-  clearAuthMessage();
-
   try {
+
+    setAuthLoading(btn, true, "Logging in");
 
     await signInWithEmailAndPassword(
       auth,
@@ -326,478 +155,313 @@ $("loginForm").addEventListener("submit", async event => {
       password
     );
 
-    showAuthMessage(
-      "Login successful. Opening your dashboard...",
-      "success"
-    );
+    showToast("Login successful.");
 
   } catch (error) {
 
-    console.error(error);
+    showToast(firebaseError(error), "error");
 
-    showAuthMessage(
-      authErrorMessage(error),
-      "error"
-    );
+  } finally {
 
-    setButtonLoading(button, false);
+    setAuthLoading(btn, false, "Logging in");
+
   }
 
 });
 
 
-/* =========================================================
-   CREATE ACCOUNT
-========================================================= */
+/* Register */
 
-$("registerForm").addEventListener("submit", async event => {
+$("registerForm").addEventListener("submit", async e => {
 
-  event.preventDefault();
+  e.preventDefault();
 
-  const button = $("registerBtn");
+  const btn = $("registerBtn");
 
   const name = $("registerName").value.trim();
   const business = $("registerBusiness").value.trim();
   const email = $("registerEmail").value.trim();
   const password = $("registerPassword").value;
 
-  if (password.length < 6) {
-
-    showAuthMessage(
-      "Password must contain at least 6 characters."
-    );
-
-    return;
-  }
-
-  setButtonLoading(button, true);
-
-  const text = button.querySelector(".btn-text");
-
-  if (text) {
-    text.textContent = "Creating account...";
-  }
-
-  clearAuthMessage();
-
   try {
 
-    const result =
-      await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+    setAuthLoading(btn, true, "Creating");
 
-    const user = result.user;
+    const result = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
 
-    await updateProfile(user, {
+    await updateProfile(result.user, {
       displayName: name
     });
 
     await setDoc(
-      doc(db, "users", user.uid),
+      doc(db, "users", result.user.uid),
       {
         name,
         businessName: business,
         email,
-        photoURL: user.photoURL || "",
-        provider: "email",
         createdAt: Date.now(),
         updatedAt: Date.now()
       },
-      {
-        merge: true
-      }
+      { merge: true }
     );
 
-    showAuthMessage(
-      "Account created successfully. Opening dashboard...",
-      "success"
-    );
+    showToast("Account created successfully.");
 
   } catch (error) {
 
-    console.error(error);
+    showToast(firebaseError(error), "error");
 
-    showAuthMessage(
-      authErrorMessage(error),
-      "error"
-    );
+  } finally {
 
-    setButtonLoading(button, false);
+    setAuthLoading(btn, false, "Create Account");
+
   }
 
 });
 
 
-/* =========================================================
-   GOOGLE LOGIN
-========================================================= */
+/* Google */
 
-async function loginWithGoogle(button) {
-
-  setButtonLoading(button, true);
-
-  const text = button.querySelector(".google-btn-text");
-
-  if (text) {
-    text.textContent = "Connecting to Google...";
-  }
-
-  clearAuthMessage();
+async function googleLogin() {
 
   try {
 
-    const result =
-      await signInWithPopup(
-        auth,
-        googleProvider
-      );
-
-    const user = result.user;
-
-    const userRef =
-      doc(db, "users", user.uid);
-
-    const profileSnapshot =
-      await getDoc(userRef);
-
-    if (!profileSnapshot.exists()) {
-
-      await setDoc(
-        userRef,
-        {
-          name: user.displayName || "Google User",
-          businessName: "Poultry Medicine Business",
-          email: user.email || "",
-          photoURL: user.photoURL || "",
-          provider: "google",
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        }
-      );
-
-    } else {
-
-      await updateDoc(
-        userRef,
-        {
-          name:
-            user.displayName ||
-            profileSnapshot.data().name ||
-            "User",
-
-          email: user.email || "",
-
-          photoURL: user.photoURL || "",
-
-          provider: "google",
-
-          updatedAt: Date.now()
-        }
-      );
-    }
-
-    showAuthMessage(
-      "Google login successful. Opening dashboard...",
-      "success"
+    await signInWithPopup(
+      auth,
+      googleProvider
     );
+
+    showToast("Google login successful.");
 
   } catch (error) {
 
-    console.error(error);
+    showToast(firebaseError(error), "error");
 
-    showAuthMessage(
-      authErrorMessage(error),
-      "error"
-    );
-
-    setButtonLoading(button, false);
-
-    const text = button.querySelector(".google-btn-text");
-
-    if (text) {
-      text.textContent = "Continue with Google";
-    }
   }
+
 }
 
-$("googleLoginBtn").addEventListener(
-  "click",
-  () => loginWithGoogle($("googleLoginBtn"))
-);
+$("googleLoginBtn").addEventListener("click", googleLogin);
 
-$("googleRegisterBtn").addEventListener(
-  "click",
-  () => loginWithGoogle($("googleRegisterBtn"))
-);
+$("googleRegisterBtn").addEventListener("click", googleLogin);
 
 
-/* =========================================================
+/* Auth switch */
+
+$("showRegisterBtn").addEventListener("click", () => {
+
+  $("loginBox").classList.add("hidden");
+  $("registerBox").classList.remove("hidden");
+
+});
+
+$("showLoginBtn").addEventListener("click", () => {
+
+  $("registerBox").classList.add("hidden");
+  $("loginBox").classList.remove("hidden");
+
+});
+
+
+/* Password visibility */
+
+document.querySelectorAll(".password-toggle").forEach(btn => {
+
+  btn.addEventListener("click", () => {
+
+    const target = $(btn.dataset.target);
+
+    target.type =
+      target.type === "password"
+        ? "text"
+        : "password";
+
+  });
+
+});
+
+
+/* Firebase error messages */
+
+function firebaseError(error) {
+
+  const code = error?.code || "";
+
+  const messages = {
+
+    "auth/api-key-not-valid":
+      "Firebase API key invalid hai. Firebase Console se current Web App config check karein.",
+
+    "auth/invalid-api-key":
+      "Firebase API key invalid hai.",
+
+    "auth/email-already-in-use":
+      "Ye email already registered hai.",
+
+    "auth/invalid-email":
+      "Email address invalid hai.",
+
+    "auth/weak-password":
+      "Password kam az kam 6 characters ka hona chahiye.",
+
+    "auth/invalid-credential":
+      "Email ya password incorrect hai.",
+
+    "auth/user-not-found":
+      "Is email ka account nahi mila.",
+
+    "auth/wrong-password":
+      "Password incorrect hai.",
+
+    "auth/operation-not-allowed":
+      "Firebase Authentication mein ye login method enable nahi hai.",
+
+    "auth/unauthorized-domain":
+      "Ye website domain Firebase Authentication ke Authorized Domains mein add nahi hai.",
+
+    "auth/popup-blocked":
+      "Google login popup browser ne block kar diya.",
+
+    "auth/popup-closed-by-user":
+      "Google login popup close kar diya gaya.",
+
+    "auth/network-request-failed":
+      "Internet connection check karein."
+
+  };
+
+  return messages[code] ||
+    error?.message ||
+    "Something went wrong.";
+}
+
+
+/* =====================================================
    AUTH STATE
-========================================================= */
+===================================================== */
 
 onAuthStateChanged(auth, async user => {
 
-  if (user) {
+  currentUser = user;
 
-    currentUser = user;
+  if (!user) {
 
-    await startApplication(user);
+    $("authScreen").classList.remove("hidden");
+    $("appScreen").classList.add("hidden");
 
-  } else {
+    cleanupListeners();
 
-    stopListeners();
-
-    currentUser = null;
-    currentProfile = null;
-    inventory = [];
-    sales = [];
-
-    $("authView").classList.remove("hidden");
-    $("appView").classList.add("hidden");
+    return;
   }
+
+  $("authScreen").classList.add("hidden");
+  $("appScreen").classList.remove("hidden");
+
+  await ensureUserProfile(user);
+
+  setupUserUI(user);
+
+  startRealtimeData();
 
 });
 
 
-/* =========================================================
-   START APP
-========================================================= */
+/* =====================================================
+   USER PROFILE
+===================================================== */
 
-async function startApplication(user) {
+async function ensureUserProfile(user) {
 
-  $("authView").classList.add("hidden");
-  $("appView").classList.remove("hidden");
+  const userRef = doc(db, "users", user.uid);
 
-  try {
-
-    await ensureProfile(user);
-
-    updateUserUI();
-
-    subscribeToProfile();
-    subscribeToInventory();
-    subscribeToSales();
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      "Unable to load your account data.",
-      "error"
-    );
-  }
-}
-
-
-/* =========================================================
-   PROFILE
-========================================================= */
-
-async function ensureProfile(user) {
-
-  const userRef =
-    doc(db, "users", user.uid);
-
-  const snapshot =
-    await getDoc(userRef);
+  const snapshot = await getDoc(userRef);
 
   if (!snapshot.exists()) {
+
+    await setDoc(userRef, {
+
+      name: user.displayName || "User",
+
+      businessName:
+        user.displayName
+          ? `${user.displayName}'s Business`
+          : "Poultry Medicine Business",
+
+      email: user.email || "",
+
+      photoURL: user.photoURL || "",
+
+      createdAt: Date.now(),
+
+      updatedAt: Date.now()
+
+    });
+
+  } else {
 
     await setDoc(
       userRef,
       {
-        name:
-          user.displayName ||
-          "User",
-
-        businessName:
-          "Poultry Medicine Business",
-
-        email:
-          user.email || "",
-
-        photoURL:
-          user.photoURL || "",
-
-        provider:
-          user.providerData?.[0]?.providerId ===
-          "google.com"
-            ? "google"
-            : "email",
-
-        createdAt:
-          Date.now(),
-
-        updatedAt:
-          Date.now()
-      }
+        email: user.email || "",
+        name: user.displayName || snapshot.data().name || "User",
+        photoURL: user.photoURL || "",
+        updatedAt: Date.now()
+      },
+      { merge: true }
     );
-  }
-}
 
-function subscribeToProfile() {
-
-  if (!currentUser) return;
-
-  if (profileUnsubscribe) {
-    profileUnsubscribe();
   }
 
-  profileUnsubscribe = onSnapshot(
-    doc(db, "users", currentUser.uid),
-    snapshot => {
-
-      if (snapshot.exists()) {
-
-        currentProfile =
-          snapshot.data();
-
-        updateUserUI();
-      }
-    }
-  );
 }
 
-function updateUserUI() {
 
-  if (!currentUser) return;
+function setupUserUI(user) {
 
   const name =
-    currentProfile?.name ||
-    currentUser.displayName ||
+    user.displayName ||
+    user.email?.split("@")[0] ||
     "User";
 
   const email =
-    currentUser.email ||
-    currentProfile?.email ||
+    user.email ||
     "";
 
   const initial =
-    getInitial(name);
+    name.charAt(0).toUpperCase();
 
-  $("topUserName").textContent = name;
-  $("sidebarUserName").textContent = name;
+  $("profileName").textContent = name;
+  $("profileEmail").textContent = email;
 
-  $("sidebarUserEmail").textContent = email;
+  $("dropdownName").textContent = name;
+  $("dropdownEmail").textContent = email;
 
-  $("menuUserName").textContent = name;
-  $("menuUserEmail").textContent = email;
+  $("welcomeName").textContent = name;
 
-  $("topAvatar").textContent = initial;
-  $("sidebarAvatar").textContent = initial;
-  $("menuAvatar").textContent = initial;
+  $("settingsName").textContent = name;
+  $("settingsEmail").textContent = email;
 
-  $("profileName").value = name;
+  $("profileAvatar").textContent = initial;
+  $("settingsAvatar").textContent = initial;
 
-  $("profileBusiness").value =
-    currentProfile?.businessName ||
-    "";
+  $("settingsBusiness").textContent =
+    "Poultry Medicine Business";
 
-  $("profileEmail").value =
-    email;
-
-  $("accountUid").textContent =
-    currentUser.uid;
-
-  $("accountProvider").textContent =
-    currentProfile?.provider === "google"
-      ? "Google"
-      : "Email / Password";
 }
 
 
-/* =========================================================
-   PROFILE SAVE
-========================================================= */
+/* =====================================================
+   REALTIME DATA
+===================================================== */
 
-$("profileForm").addEventListener(
-  "submit",
-  async event => {
+function startRealtimeData() {
 
-    event.preventDefault();
+  cleanupListeners();
 
-    if (!currentUser) return;
-
-    const button = $("saveProfileBtn");
-
-    setButtonLoading(button, true);
-
-    const text = button.querySelector(".btn-text");
-
-    if (text) {
-      text.textContent = "Saving...";
-    }
-
-    try {
-
-      const name =
-        $("profileName").value.trim();
-
-      const businessName =
-        $("profileBusiness").value.trim();
-
-      await setDoc(
-        doc(db, "users", currentUser.uid),
-        {
-          name,
-          businessName,
-          email: currentUser.email || "",
-          updatedAt: Date.now()
-        },
-        {
-          merge: true
-        }
-      );
-
-      await updateProfile(
-        currentUser,
-        {
-          displayName: name
-        }
-      );
-
-      showToast(
-        "Profile saved successfully."
-      );
-
-    } catch (error) {
-
-      console.error(error);
-
-      showToast(
-        "Unable to save profile.",
-        "error"
-      );
-
-    } finally {
-
-      setButtonLoading(
-        button,
-        false,
-        "Save Profile"
-      );
-    }
-  }
-);
-
-
-/* =========================================================
-   FIRESTORE LISTENERS
-========================================================= */
-
-function subscribeToInventory() {
-
-  if (!currentUser) return;
-
-  if (inventoryUnsubscribe) {
-    inventoryUnsubscribe();
-  }
-
-  const ref =
+  const inventoryRef =
     collection(
       db,
       "users",
@@ -805,48 +469,7 @@ function subscribeToInventory() {
       "inventory"
     );
 
-  inventoryUnsubscribe =
-    onSnapshot(
-      ref,
-      snapshot => {
-
-        inventory =
-          snapshot.docs.map(
-            item => ({
-              id: item.id,
-              ...item.data()
-            })
-          );
-
-        inventory.sort(
-          (a, b) =>
-            Number(b.createdAt || 0) -
-            Number(a.createdAt || 0)
-        );
-
-        renderEverything();
-      },
-      error => {
-
-        console.error(error);
-
-        showToast(
-          "Inventory sync error.",
-          "error"
-        );
-      }
-    );
-}
-
-function subscribeToSales() {
-
-  if (!currentUser) return;
-
-  if (salesUnsubscribe) {
-    salesUnsubscribe();
-  }
-
-  const ref =
+  const salesRef =
     collection(
       db,
       "users",
@@ -854,1015 +477,271 @@ function subscribeToSales() {
       "sales"
     );
 
-  salesUnsubscribe =
-    onSnapshot(
-      ref,
-      snapshot => {
 
-        sales =
-          snapshot.docs.map(
-            item => ({
-              id: item.id,
-              ...item.data()
-            })
-          );
+  unsubInventory = onSnapshot(
+    inventoryRef,
+    snapshot => {
 
-        sales.sort(
-          (a, b) =>
-            Number(b.soldAt || 0) -
-            Number(a.soldAt || 0)
-        );
+      inventory =
+        snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
 
-        renderEverything();
-      },
-      error => {
+      renderAll();
 
-        console.error(error);
+    },
+    error => {
 
-        showToast(
-          "Sales sync error.",
-          "error"
-        );
-      }
-    );
+      console.error(error);
+
+      showToast(
+        "Inventory data load nahi ho raha.",
+        "error"
+      );
+
+    }
+  );
+
+
+  unsubSales = onSnapshot(
+    salesRef,
+    snapshot => {
+
+      sales =
+        snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+      renderAll();
+
+    },
+    error => {
+
+      console.error(error);
+
+      showToast(
+        "Sales data load nahi ho raha.",
+        "error"
+      );
+
+    }
+  );
+
 }
 
 
-/* =========================================================
-   STOP LISTENERS
-========================================================= */
+function cleanupListeners() {
 
-function stopListeners() {
-
-  if (inventoryUnsubscribe) {
-    inventoryUnsubscribe();
-    inventoryUnsubscribe = null;
+  if (unsubInventory) {
+    unsubInventory();
+    unsubInventory = null;
   }
 
-  if (salesUnsubscribe) {
-    salesUnsubscribe();
-    salesUnsubscribe = null;
+  if (unsubSales) {
+    unsubSales();
+    unsubSales = null;
   }
 
-  if (profileUnsubscribe) {
-    profileUnsubscribe();
-    profileUnsubscribe = null;
-  }
 }
 
 
-/* =========================================================
+/* =====================================================
    NAVIGATION
-========================================================= */
-
-const pageTitles = {
-
-  dashboard: [
-    "Dashboard",
-    "Business overview"
-  ],
-
-  inventory: [
-    "Inventory",
-    "Manage medicine stock"
-  ],
-
-  sale: [
-    "New Sale",
-    "Record sale and delivery"
-  ],
-
-  history: [
-    "Sales History",
-    "Complete transaction history"
-  ],
-
-  customers: [
-    "Customers",
-    "Customer purchase records"
-  ],
-
-  deliveries: [
-    "Deliveries",
-    "Salesman delivery tracking"
-  ],
-
-  reports: [
-    "Reports",
-    "Business performance"
-  ],
-
-  settings: [
-    "Settings",
-    "Account settings"
-  ]
-};
+===================================================== */
 
 function navigate(page) {
 
-  document
-    .querySelectorAll(".page")
-    .forEach(section => {
+  document.querySelectorAll(".page").forEach(section => {
+    section.classList.remove("active-page");
+  });
 
-      section.classList.remove(
-        "active-page"
-      );
-    });
-
-  const target =
-    $(`page-${page}`);
+  const target = $("page-" + page);
 
   if (target) {
-    target.classList.add(
-      "active-page"
+    target.classList.add("active-page");
+  }
+
+  document.querySelectorAll(".nav-item").forEach(item => {
+
+    item.classList.toggle(
+      "active",
+      item.dataset.page === page
     );
-  }
 
-  document
-    .querySelectorAll(".nav-item")
-    .forEach(button => {
-
-      button.classList.toggle(
-        "active",
-        button.dataset.page === page
-      );
-    });
-
-  $("pageTitle").textContent =
-    pageTitles[page]?.[0] ||
-    "Dashboard";
-
-  $("pageSubtitle").textContent =
-    pageTitles[page]?.[1] ||
-    "";
-
-  $("profileMenu").classList.add(
-    "hidden"
-  );
-
-  $("sidebar").classList.remove(
-    "open"
-  );
-
-  if (page === "sale") {
-    prepareSaleForm();
-  }
-
-  if (page === "reports") {
-    renderReports();
-  }
-}
-
-document
-  .querySelectorAll("[data-page]")
-  .forEach(button => {
-
-    button.addEventListener(
-      "click",
-      () => {
-
-        navigate(
-          button.dataset.page
-        );
-      }
-    );
   });
 
+  const titles = {
 
-/* =========================================================
-   MOBILE SIDEBAR
-========================================================= */
+    dashboard: [
+      "Dashboard",
+      "Overview of your medicine business"
+    ],
 
-$("mobileMenuBtn").addEventListener(
-  "click",
-  () => {
+    inventory: [
+      "Inventory",
+      "Manage medicines and batches"
+    ],
 
-    $("sidebar").classList.toggle(
-      "open"
-    );
-  }
-);
+    sales: [
+      "Sales",
+      "Sales history, invoices and profit"
+    ],
 
+    customers: [
+      "Customers",
+      "Customer purchase history"
+    ],
 
-/* =========================================================
-   PROFILE MENU
-========================================================= */
+    salesmen: [
+      "Salesmen & Delivery",
+      "Track delivery performance"
+    ],
 
-$("profileBtn").addEventListener(
-  "click",
-  event => {
+    reports: [
+      "Reports",
+      "Business performance and profit"
+    ],
 
-    event.stopPropagation();
+    settings: [
+      "Settings",
+      "Manage your account"
+    ]
 
-    $("profileMenu").classList.toggle(
-      "hidden"
-    );
-  }
-);
-
-document.addEventListener(
-  "click",
-  event => {
-
-    if (
-      !event.target.closest(
-        ".profile-wrap"
-      )
-    ) {
-
-      $("profileMenu").classList.add(
-        "hidden"
-      );
-    }
-  }
-);
-
-
-/* =========================================================
-   LOGOUT
-========================================================= */
-
-async function logoutUser() {
-
-  const confirmed =
-    confirm(
-      "Are you sure you want to logout?"
-    );
-
-  if (!confirmed) return;
-
-  try {
-
-    await signOut(auth);
-
-    showToast(
-      "Logged out successfully."
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      "Logout failed.",
-      "error"
-    );
-  }
-}
-
-$("sidebarLogoutBtn").addEventListener(
-  "click",
-  logoutUser
-);
-
-$("menuLogoutBtn").addEventListener(
-  "click",
-  logoutUser
-);
-
-$("settingsLogoutBtn").addEventListener(
-  "click",
-  logoutUser
-);
-
-
-/* =========================================================
-   THEME
-========================================================= */
-
-const savedTheme =
-  localStorage.getItem(
-    "poultryTheme"
-  );
-
-if (savedTheme === "dark") {
-
-  document.body.classList.add(
-    "dark"
-  );
-
-  $("themeBtn").textContent = "☀️";
-}
-
-$("themeBtn").addEventListener(
-  "click",
-  () => {
-
-    document.body.classList.toggle(
-      "dark"
-    );
-
-    const dark =
-      document.body.classList.contains(
-        "dark"
-      );
-
-    localStorage.setItem(
-      "poultryTheme",
-      dark ? "dark" : "light"
-    );
-
-    $("themeBtn").textContent =
-      dark ? "☀️" : "🌙";
-  }
-);
-
-
-/* =========================================================
-   INVENTORY STATUS
-========================================================= */
-
-function expiryInfo(expiryDate) {
-
-  if (!expiryDate) {
-
-    return {
-      type: "none",
-      label: "No expiry"
-    };
-  }
-
-  const today =
-    new Date(
-      todayString() + "T00:00:00"
-    );
-
-  const expiry =
-    new Date(
-      expiryDate + "T00:00:00"
-    );
-
-  const difference =
-    Math.ceil(
-      (
-        expiry - today
-      ) /
-      (1000 * 60 * 60 * 24)
-    );
-
-  if (difference < 0) {
-
-    return {
-      type: "expired",
-      label: `Expired ${Math.abs(difference)} days ago`
-    };
-  }
-
-  if (difference <= 7) {
-
-    return {
-      type: "expiring",
-      label: `Expires in ${difference} days`
-    };
-  }
-
-  if (difference <= 30) {
-
-    return {
-      type: "soon",
-      label: `Expires in ${difference} days`
-    };
-  }
-
-  return {
-    type: "good",
-    label: `Expires ${expiryDate}`
   };
-}
 
-function stockStatus(item) {
+  if (titles[page]) {
 
-  const qty =
-    Number(item.quantity || 0);
+    $("pageTitle").textContent =
+      titles[page][0];
 
-  const threshold =
-    Number(
-      item.lowStockThreshold || 0
-    );
+    $("pageSubtitle").textContent =
+      titles[page][1];
 
-  if (qty <= 0) {
-
-    return {
-      type: "expired",
-      label: "Out of Stock"
-    };
   }
 
-  if (threshold > 0 && qty <= threshold) {
+  $("sidebar").classList.remove("open");
 
-    return {
-      type: "expiring",
-      label: "Low Stock"
-    };
-  }
+  $("profileDropdown").classList.add("hidden");
 
-  return {
-    type: "good",
-    label: "Available"
-  };
 }
 
 
-/* =========================================================
-   DASHBOARD
-========================================================= */
+/* Navigation clicks */
 
-function calculateProfitTotals() {
+document.querySelectorAll("[data-page]").forEach(element => {
 
-  let totalSales = 0;
-  let totalProfit = 0;
+  element.addEventListener("click", () => {
 
-  let todayProfit = 0;
-  let monthProfit = 0;
-  let yearProfit = 0;
+    const page = element.dataset.page;
 
-  const now = new Date();
-
-  const today =
-    now.toISOString().slice(0, 10);
-
-  const month =
-    `${now.getFullYear()}-${String(
-      now.getMonth() + 1
-    ).padStart(2, "0")}`;
-
-  const year =
-    String(now.getFullYear());
-
-  sales.forEach(sale => {
-
-    const saleValue =
-      Number(sale.totalSale || 0);
-
-    const profit =
-      Number(sale.profit || 0);
-
-    totalSales += saleValue;
-    totalProfit += profit;
-
-    const date =
-      new Date(
-        Number(sale.soldAt || 0)
-      );
-
-    const dateString =
-      date.toISOString().slice(0, 10);
-
-    const saleMonth =
-      `${date.getFullYear()}-${String(
-        date.getMonth() + 1
-      ).padStart(2, "0")}`;
-
-    const saleYear =
-      String(date.getFullYear());
-
-    if (dateString === today) {
-      todayProfit += profit;
+    if (page) {
+      navigate(page);
     }
 
-    if (saleMonth === month) {
-      monthProfit += profit;
-    }
-
-    if (saleYear === year) {
-      yearProfit += profit;
-    }
   });
 
-  return {
-    totalSales,
-    totalProfit,
-    todayProfit,
-    monthProfit,
-    yearProfit
-  };
-}
-
-function renderDashboard() {
-
-  const totalItems =
-    inventory.length;
-
-  const lowStock =
-    inventory.filter(
-      item =>
-        Number(item.quantity || 0) <=
-        Number(item.lowStockThreshold || 0) &&
-        Number(item.quantity || 0) > 0
-    ).length;
-
-  const expired =
-    inventory.filter(
-      item =>
-        expiryInfo(item.expiryDate).type ===
-        "expired"
-    ).length;
-
-  const expiring =
-    inventory.filter(
-      item =>
-        ["expiring", "soon"].includes(
-          expiryInfo(item.expiryDate).type
-        )
-    ).length;
-
-  const inventoryValue =
-    inventory.reduce(
-      (sum, item) =>
-        sum +
-        Number(item.quantity || 0) *
-        Number(item.purchasePrice || 0),
-      0
-    );
-
-  const totals =
-    calculateProfitTotals();
-
-  $("statItems").textContent =
-    totalItems;
-
-  $("statLow").textContent =
-    lowStock;
-
-  $("statExpired").textContent =
-    expired;
-
-  $("statExpiring").textContent =
-    expiring;
-
-  $("statInventoryValue").textContent =
-    money(inventoryValue);
-
-  $("statSales").textContent =
-    money(totals.totalSales);
-
-  $("statProfit").textContent =
-    money(totals.totalProfit);
-
-  $("statTodayProfit").textContent =
-    money(totals.todayProfit);
-
-  $("statMonthProfit").textContent =
-    money(totals.monthProfit);
-
-  $("statYearProfit").textContent =
-    money(totals.yearProfit);
-
-  renderRecentSales();
-  renderExpiryAlerts();
-}
-
-function renderRecentSales() {
-
-  const target =
-    $("recentSalesTable");
-
-  const recent =
-    sales.slice(0, 7);
-
-  if (!recent.length) {
-
-    target.innerHTML =
-      `<div class="empty-state">
-        No sales recorded yet.
-      </div>`;
+});
 
-    return;
-  }
 
-  target.innerHTML = `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Medicine</th>
-          <th>Customer</th>
-          <th>Qty</th>
-          <th>Profit</th>
-        </tr>
-      </thead>
+$("mobileMenuBtn").addEventListener("click", () => {
 
-      <tbody>
+  $("sidebar").classList.toggle("open");
 
-        ${recent.map(sale => `
+});
 
-          <tr>
 
-            <td>
-              ${dateFromTimestamp(sale.soldAt)}
-            </td>
+$("profileBtn").addEventListener("click", () => {
 
-            <td>
-              <strong>
-                ${escapeHTML(sale.medicineName)}
-              </strong>
-            </td>
+  $("profileDropdown").classList.toggle("hidden");
 
-            <td>
-              ${escapeHTML(sale.customerName)}
-            </td>
+});
 
-            <td>
-              ${sale.quantity}
-            </td>
 
-            <td>
-              <strong>
-                ${money(sale.profit)}
-              </strong>
-            </td>
+/* =====================================================
+   DASHBOARD FILTER CARDS
+===================================================== */
 
-          </tr>
+document.querySelectorAll("[data-dashboard-filter]").forEach(element => {
 
-        `).join("")}
+  element.addEventListener("click", () => {
 
-      </tbody>
-    </table>
-  `;
-}
+    const filter = element.dataset.dashboardFilter;
 
-function renderExpiryAlerts() {
+    if (filter === "sales") {
 
-  const target =
-    $("expiryAlerts");
+      navigate("sales");
 
-  const alerts =
-    inventory
-      .filter(item => {
+      $("salesPeriod").value = "all";
 
-        const expiry =
-          expiryInfo(item.expiryDate);
+      renderSales();
 
-        return [
-          "expired",
-          "expiring",
-          "soon"
-        ].includes(expiry.type);
-      })
-      .slice(0, 8);
+      return;
 
-  if (!alerts.length) {
+    }
 
-    target.innerHTML =
-      `<div class="empty-state">
-        No expiry alerts.
-      </div>`;
+    navigate("inventory");
 
-    return;
-  }
+    $("inventoryFilter").value =
+      filter === "all" ? "all" : filter;
 
-  target.innerHTML =
-    alerts.map(item => {
+    renderInventory();
 
-      const expiry =
-        expiryInfo(item.expiryDate);
+  });
 
-      const badge =
-        expiry.type === "expired"
-          ? "badge-red"
-          : "badge-orange";
+});
 
-      return `
-
-        <div class="alert-item">
 
-          <div>
-
-            <strong>
-              ${escapeHTML(item.name)}
-            </strong>
-
-            <small>
-              Batch: ${escapeHTML(item.batchNo || "-")}
-            </small>
-
-          </div>
-
-          <span class="badge ${badge}">
-            ${escapeHTML(expiry.label)}
-          </span>
+/* =====================================================
+   STOCK MODAL
+===================================================== */
 
-        </div>
-      `;
-
-    }).join("");
-}
-
-
-/* =========================================================
-   INVENTORY
-========================================================= */
-
-function renderInventory() {
-
-  const search =
-    $("inventorySearch").value
-      .trim()
-      .toLowerCase();
-
-  const category =
-    $("inventoryCategoryFilter").value;
-
-  const status =
-    $("inventoryStatusFilter").value;
-
-  let filtered =
-    inventory.filter(item => {
-
-      const text =
-        [
-          item.name,
-          item.batchNo,
-          item.supplier,
-          item.category
-        ]
-          .join(" ")
-          .toLowerCase();
-
-      if (
-        search &&
-        !text.includes(search)
-      ) {
-        return false;
-      }
-
-      if (
-        category &&
-        item.category !== category
-      ) {
-        return false;
-      }
-
-      if (status) {
-
-        const expiry =
-          expiryInfo(item.expiryDate);
-
-        const stock =
-          stockStatus(item);
-
-        if (
-          status === "low" &&
-          stock.type !== "expiring"
-        ) {
-          return false;
-        }
-
-        if (
-          status === "expired" &&
-          expiry.type !== "expired"
-        ) {
-          return false;
-        }
-
-        if (
-          status === "expiring" &&
-          !["expiring", "soon"].includes(
-            expiry.type
-          )
-        ) {
-          return false;
-        }
-
-        if (
-          status === "available" &&
-          stock.type !== "good"
-        ) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-  const target =
-    $("inventoryTable");
-
-  if (!filtered.length) {
-
-    target.innerHTML =
-      `<div class="empty-state">
-        No inventory found.
-      </div>`;
-
-    return;
-  }
-
-  target.innerHTML = `
-    <table class="data-table">
-
-      <thead>
-
-        <tr>
-          <th>Medicine</th>
-          <th>Category</th>
-          <th>Batch</th>
-          <th>Qty</th>
-          <th>Purchase</th>
-          <th>Sale</th>
-          <th>Expiry</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${filtered.map(item => {
-
-          const expiry =
-            expiryInfo(item.expiryDate);
-
-          const stock =
-            stockStatus(item);
-
-          let badgeClass =
-            "badge-green";
-
-          let label =
-            stock.label;
-
-          if (
-            expiry.type === "expired"
-          ) {
-            badgeClass = "badge-red";
-            label = "Expired";
-          }
-
-          else if (
-            stock.type === "expiring"
-          ) {
-            badgeClass = "badge-orange";
-          }
-
-          return `
-
-            <tr>
-
-              <td>
-                <strong>
-                  ${escapeHTML(item.name)}
-                </strong>
-                <small style="display:block;color:var(--muted)">
-                  ${escapeHTML(item.supplier || "")}
-                </small>
-              </td>
-
-              <td>
-                ${escapeHTML(item.category || "-")}
-              </td>
-
-              <td>
-                ${escapeHTML(item.batchNo || "-")}
-              </td>
-
-              <td>
-                <strong>
-                  ${Number(item.quantity || 0)}
-                </strong>
-                ${escapeHTML(item.unit || "")}
-              </td>
-
-              <td>
-                ${money(item.purchasePrice)}
-              </td>
-
-              <td>
-                ${money(item.salePrice)}
-              </td>
-
-              <td>
-                ${item.expiryDate || "-"}
-              </td>
-
-              <td>
-                <span class="badge ${badgeClass}">
-                  ${escapeHTML(label)}
-                </span>
-              </td>
-
-              <td>
-
-                <button
-                  class="table-action"
-                  data-edit-stock="${item.id}">
-                  Edit
-                </button>
-
-                <button
-                  class="table-action delete"
-                  data-delete-stock="${item.id}">
-                  Delete
-                </button>
-
-              </td>
-
-            </tr>
-
-          `;
-
-        }).join("")}
-
-      </tbody>
-
-    </table>
-  `;
-
-  target
-    .querySelectorAll(
-      "[data-edit-stock]"
-    )
-    .forEach(button => {
-
-      button.addEventListener(
-        "click",
-        () => {
-
-          editStock(
-            button.dataset.editStock
-          );
-        }
-      );
-    });
-
-  target
-    .querySelectorAll(
-      "[data-delete-stock]"
-    )
-    .forEach(button => {
-
-      button.addEventListener(
-        "click",
-        () => {
-
-          deleteStock(
-            button.dataset.deleteStock
-          );
-        }
-      );
-    });
-}
-
-
-/* =========================================================
-   ADD STOCK
-========================================================= */
-
-function openStockModal(item = null) {
+function openStockModal(id = null) {
 
   $("stockForm").reset();
 
-  $("stockId").value =
-    item?.id || "";
+  $("stockId").value = "";
 
   $("stockModalTitle").textContent =
-    item
-      ? "Edit Stock"
-      : "Add Stock";
-
-  $("stockName").value =
-    item?.name || "";
-
-  $("stockCategory").value =
-    item?.category || "";
-
-  $("stockBatch").value =
-    item?.batchNo || "";
-
-  $("stockQuantity").value =
-    item?.quantity ?? "";
-
-  $("stockUnit").value =
-    item?.unit || "Pieces";
-
-  $("purchasePrice").value =
-    item?.purchasePrice ?? "";
-
-  $("defaultSalePrice").value =
-    item?.salePrice ?? "";
-
-  $("lowStockThreshold").value =
-    item?.lowStockThreshold ?? 10;
-
-  $("supplier").value =
-    item?.supplier || "";
+    id ? "Edit Medicine" : "Add Medicine";
 
   $("purchaseDate").value =
-    item?.purchaseDate || "";
+    todayString();
 
-  $("expiryDate").value =
-    item?.expiryDate || "";
+  $("minStock").value = 20;
 
-  $("stockNotes").value =
-    item?.notes || "";
+  if (id) {
 
-  $("stockModal").classList.remove(
-    "hidden"
-  );
+    const item =
+      inventory.find(x => x.id === id);
+
+    if (!item) return;
+
+    $("stockId").value = item.id;
+
+    $("medicineName").value = item.name || "";
+    $("medicineCategory").value = item.category || "";
+    $("batchNumber").value = item.batchNumber || "";
+    $("manufacturer").value = item.manufacturer || "";
+    $("supplier").value = item.supplier || "";
+    $("purchaseDate").value = item.purchaseDate || "";
+    $("expiryDate").value = item.expiryDate || "";
+    $("quantity").value = item.quantity ?? "";
+    $("unit").value = item.unit || "Bottles";
+    $("buyPrice").value = item.buyPrice ?? "";
+    $("salePrice").value = item.salePrice ?? "";
+    $("minStock").value = item.minStock ?? 20;
+    $("stockNotes").value = item.notes || "";
+
+  }
+
+  showModal("stockModal");
+
 }
 
-$("addStockBtn").addEventListener(
+
+$("inventoryAddBtn").addEventListener(
   "click",
   () => openStockModal()
 );
@@ -1872,803 +751,1104 @@ $("dashboardAddStockBtn").addEventListener(
   () => openStockModal()
 );
 
-async function editStock(id) {
+$("quickAddStock").addEventListener(
+  "click",
+  () => openStockModal()
+);
 
-  const item =
-    inventory.find(
-      stock => stock.id === id
-    );
 
-  if (!item) return;
+/* Save inventory */
 
-  openStockModal(item);
-}
+$("stockForm").addEventListener("submit", async e => {
 
-async function deleteStock(id) {
+  e.preventDefault();
 
-  const item =
-    inventory.find(
-      stock => stock.id === id
-    );
+  if (!currentUser) return;
 
-  if (!item) return;
+  const id = $("stockId").value;
 
-  const confirmed =
-    confirm(
-      `Delete "${item.name}" from inventory?`
-    );
+  const data = {
 
-  if (!confirmed) return;
+    name: $("medicineName").value.trim(),
+
+    category:
+      $("medicineCategory").value.trim(),
+
+    batchNumber:
+      $("batchNumber").value.trim(),
+
+    manufacturer:
+      $("manufacturer").value.trim(),
+
+    supplier:
+      $("supplier").value.trim(),
+
+    purchaseDate:
+      $("purchaseDate").value,
+
+    expiryDate:
+      $("expiryDate").value,
+
+    quantity:
+      Number($("quantity").value),
+
+    unit:
+      $("unit").value,
+
+    buyPrice:
+      Number($("buyPrice").value),
+
+    salePrice:
+      Number($("salePrice").value),
+
+    minStock:
+      Number($("minStock").value || 20),
+
+    notes:
+      $("stockNotes").value.trim(),
+
+    updatedAt:
+      Date.now()
+
+  };
+
 
   try {
 
-    await deleteDoc(
-      doc(
-        db,
-        "users",
-        currentUser.uid,
-        "inventory",
-        id
-      )
-    );
+    if (id) {
 
-    showToast(
-      "Stock deleted successfully."
-    );
+      await updateDoc(
+        doc(
+          db,
+          "users",
+          currentUser.uid,
+          "inventory",
+          id
+        ),
+        data
+      );
+
+      showToast("Medicine updated.");
+
+    } else {
+
+      await addDoc(
+        collection(
+          db,
+          "users",
+          currentUser.uid,
+          "inventory"
+        ),
+        {
+          ...data,
+          createdAt: Date.now()
+        }
+      );
+
+      showToast("Medicine added successfully.");
+
+    }
+
+    hideModal("stockModal");
 
   } catch (error) {
 
     console.error(error);
 
     showToast(
-      "Unable to delete stock.",
+      "Medicine save nahi ho saki.",
       "error"
     );
+
   }
-}
 
-
-/* =========================================================
-   SAVE STOCK
-========================================================= */
-
-$("stockForm").addEventListener(
-  "submit",
-  async event => {
-
-    event.preventDefault();
-
-    if (!currentUser) return;
-
-    const button =
-      $("saveStockBtn");
-
-    setButtonLoading(
-      button,
-      true
-    );
-
-    const id =
-      $("stockId").value;
-
-    const data = {
-
-      name:
-        $("stockName").value.trim(),
-
-      category:
-        $("stockCategory").value,
-
-      batchNo:
-        $("stockBatch").value.trim(),
-
-      quantity:
-        Number(
-          $("stockQuantity").value
-        ),
-
-      unit:
-        $("stockUnit").value,
-
-      purchasePrice:
-        Number(
-          $("purchasePrice").value
-        ),
-
-      salePrice:
-        Number(
-          $("defaultSalePrice").value
-        ),
-
-      lowStockThreshold:
-        Number(
-          $("lowStockThreshold").value || 0
-        ),
-
-      supplier:
-        $("supplier").value.trim(),
-
-      purchaseDate:
-        $("purchaseDate").value,
-
-      expiryDate:
-        $("expiryDate").value,
-
-      notes:
-        $("stockNotes").value.trim(),
-
-      updatedAt:
-        Date.now()
-    };
-
-    try {
-
-      if (id) {
-
-        await updateDoc(
-          doc(
-            db,
-            "users",
-            currentUser.uid,
-            "inventory",
-            id
-          ),
-          data
-        );
-
-        showToast(
-          "Stock updated successfully."
-        );
-
-      } else {
-
-        await addDoc(
-          collection(
-            db,
-            "users",
-            currentUser.uid,
-            "inventory"
-          ),
-          {
-            ...data,
-            createdAt: Date.now()
-          }
-        );
-
-        showToast(
-          "Stock added successfully."
-        );
-      }
-
-      closeModal("stockModal");
-
-    } catch (error) {
-
-      console.error(error);
-
-      showToast(
-        "Unable to save stock.",
-        "error"
-      );
-
-    } finally {
-
-      setButtonLoading(
-        button,
-        false,
-        "Save Stock"
-      );
-    }
-  }
-);
-
-
-/* =========================================================
-   SALE FORM
-========================================================= */
-
-function prepareSaleForm() {
-
-  $("saleDate").value =
-    todayString();
-
-  populateSaleInventory();
-
-  calculateSalePreview();
-}
-
-function populateSaleInventory() {
-
-  const select =
-    $("saleInventory");
-
-  const currentValue =
-    select.value;
-
-  const available =
-    inventory.filter(item => {
-
-      const quantity =
-        Number(item.quantity || 0);
-
-      const expiry =
-        expiryInfo(item.expiryDate);
-
-      return (
-        quantity > 0 &&
-        expiry.type !== "expired"
-      );
-    });
-
-  select.innerHTML =
-    `<option value="">
-      Select available stock
-    </option>`;
-
-  available.forEach(item => {
-
-    const option =
-      document.createElement(
-        "option"
-      );
-
-    option.value =
-      item.id;
-
-    option.textContent =
-      `${item.name} | Batch: ${
-        item.batchNo || "-"
-      } | Qty: ${
-        item.quantity
-      } | ${money(item.salePrice)}`;
-
-    select.appendChild(
-      option
-    );
-  });
-
-  if (
-    available.some(
-      item =>
-        item.id === currentValue
-    )
-  ) {
-
-    select.value =
-      currentValue;
-  }
-}
-
-function selectedSaleInventory() {
-
-  return inventory.find(
-    item =>
-      item.id ===
-      $("saleInventory").value
-  );
-}
-
-$("saleInventory").addEventListener(
-  "change",
-  () => {
-
-    const item =
-      selectedSaleInventory();
-
-    if (!item) {
-
-      $("stockAvailableText").textContent =
-        "";
-
-      return;
-    }
-
-    $("salePrice").value =
-      item.salePrice || 0;
-
-    $("saleQuantity").value =
-      "";
-
-    $("stockAvailableText").textContent =
-      `Available: ${
-        item.quantity
-      } ${
-        item.unit || ""
-      }`;
-
-    calculateSalePreview();
-  }
-);
-
-[
-  "saleQuantity",
-  "salePrice",
-  "saleDiscount"
-].forEach(id => {
-
-  $(id).addEventListener(
-    "input",
-    calculateSalePreview
-  );
 });
 
-function calculateSalePreview() {
 
-  const item =
-    selectedSaleInventory();
+/* =====================================================
+   INVENTORY
+===================================================== */
 
-  const quantity =
-    Number(
-      $("saleQuantity").value || 0
-    );
+function getInventoryStatus(item) {
 
-  const salePrice =
-    Number(
-      $("salePrice").value || 0
-    );
+  const qty = Number(item.quantity || 0);
 
-  const discount =
-    Number(
-      $("saleDiscount").value || 0
-    );
+  if (qty <= 0) {
+    return "out";
+  }
 
-  const gross =
-    quantity * salePrice;
+  if (isExpired(item.expiryDate)) {
+    return "expired";
+  }
 
-  const total =
-    Math.max(
-      gross - discount,
-      0
-    );
+  if (isExpirySoon(item.expiryDate)) {
+    return "soon";
+  }
 
-  const cost =
-    quantity *
-    Number(
-      item?.purchasePrice || 0
-    );
+  if (qty <= Number(item.minStock || 20)) {
+    return "low";
+  }
 
-  const profit =
-    total - cost;
+  return "good";
 
-  $("saleGross").textContent =
-    money(gross);
-
-  $("saleDiscountDisplay").textContent =
-    money(discount);
-
-  $("saleTotal").textContent =
-    money(total);
-
-  $("saleProfit").textContent =
-    money(profit);
 }
 
 
-/* =========================================================
-   COMPLETE SALE + STOCK TRANSACTION
-========================================================= */
+function isExpired(date) {
 
-$("saleForm").addEventListener(
-  "submit",
-  async event => {
+  if (!date) return false;
 
-    event.preventDefault();
+  return date <
+    todayString();
 
-    if (!currentUser) return;
+}
 
-    const button =
-      $("completeSaleBtn");
 
-    const item =
-      selectedSaleInventory();
+function daysUntil(date) {
 
-    if (!item) {
+  if (!date) return Infinity;
 
-      showToast(
-        "Please select a medicine.",
-        "error"
-      );
+  const now =
+    new Date(todayString() + "T00:00:00");
 
-      return;
-    }
+  const target =
+    new Date(date + "T00:00:00");
 
-    const quantity =
-      Number(
-        $("saleQuantity").value
-      );
+  return Math.ceil(
+    (target - now) / 86400000
+  );
 
-    const salePrice =
-      Number(
-        $("salePrice").value
-      );
+}
 
-    const discount =
-      Number(
-        $("saleDiscount").value || 0
-      );
 
-    const customerName =
-      $("customerName").value.trim();
+function isExpirySoon(date) {
 
-    const salesmanName =
-      $("salesmanName").value.trim();
+  const days = daysUntil(date);
 
-    if (
-      !Number.isInteger(quantity) ||
-      quantity <= 0
-    ) {
+  return days >= 0 && days <= 30;
 
-      showToast(
-        "Enter a valid quantity.",
-        "error"
-      );
+}
 
-      return;
-    }
 
-    if (quantity > Number(item.quantity)) {
+function statusHTML(item) {
 
-      showToast(
-        `Only ${item.quantity} units are available.`,
-        "error"
-      );
+  const status =
+    getInventoryStatus(item);
 
-      return;
-    }
+  const labels = {
 
-    if (salePrice < 0) {
+    good: "IN STOCK",
+    low: "LOW STOCK",
+    out: "OUT OF STOCK",
+    expired: "EXPIRED",
+    soon: "EXPIRING SOON"
 
-      showToast(
-        "Sale price cannot be negative.",
-        "error"
-      );
+  };
 
-      return;
-    }
+  return `
+    <span class="status-badge status-${status}">
+      ${labels[status]}
+    </span>
+  `;
 
-    const gross =
-      quantity * salePrice;
+}
 
-    if (discount > gross) {
 
-      showToast(
-        "Discount cannot be greater than sale amount.",
-        "error"
-      );
-
-      return;
-    }
-
-    if (!customerName) {
-
-      showToast(
-        "Customer name is required.",
-        "error"
-      );
-
-      return;
-    }
-
-    if (!salesmanName) {
-
-      showToast(
-        "Salesman name is required.",
-        "error"
-      );
-
-      return;
-    }
-
-    setButtonLoading(
-      button,
-      true
-    );
-
-    const saleDate =
-      $("saleDate").value ||
-      todayString();
-
-    const soldAt =
-      new Date(
-        `${saleDate}T12:00:00`
-      ).getTime();
-
-    const totalSale =
-      Math.max(
-        gross - discount,
-        0
-      );
-
-    try {
-
-      const inventoryRef =
-        doc(
-          db,
-          "users",
-          currentUser.uid,
-          "inventory",
-          item.id
-        );
-
-      const saleRef =
-        doc(
-          collection(
-            db,
-            "users",
-            currentUser.uid,
-            "sales"
-          )
-        );
-
-      await runTransaction(
-        db,
-        async transaction => {
-
-          const stockSnapshot =
-            await transaction.get(
-              inventoryRef
-            );
-
-          if (!stockSnapshot.exists()) {
-
-            throw new Error(
-              "Stock item no longer exists."
-            );
-          }
-
-          const latestStock =
-            stockSnapshot.data();
-
-          const latestQuantity =
-            Number(
-              latestStock.quantity || 0
-            );
-
-          if (
-            latestQuantity < quantity
-          ) {
-
-            throw new Error(
-              `Only ${latestQuantity} units are available.`
-            );
-          }
-
-          const remaining =
-            latestQuantity -
-            quantity;
-
-          const totalCost =
-            quantity *
-            Number(
-              latestStock.purchasePrice || 0
-            );
-
-          const profit =
-            totalSale -
-            totalCost;
-
-          const invoiceNo =
-            $("deliveryNumber").value.trim() ||
-            `DEL-${Date.now()}`;
-
-          const saleData = {
-
-            inventoryId:
-              item.id,
-
-            medicineName:
-              latestStock.name || item.name,
-
-            category:
-              latestStock.category || "",
-
-            batchNo:
-              latestStock.batchNo || "",
-
-            quantity,
-
-            unit:
-              latestStock.unit || "",
-
-            unitCost:
-              Number(
-                latestStock.purchasePrice || 0
-              ),
-
-            unitSalePrice:
-              salePrice,
-
-            grossAmount:
-              gross,
-
-            discount,
-
-            totalSale,
-
-            totalCost,
-
-            profit,
-
-            customerName,
-
-            customerPhone:
-              $("customerPhone").value.trim(),
-
-            customerAddress:
-              $("customerAddress").value.trim(),
-
-            salesmanName,
-
-            salesmanPhone:
-              $("salesmanPhone").value.trim(),
-
-            deliveryNumber:
-              invoiceNo,
-
-            paymentStatus:
-              $("paymentStatus").value,
-
-            saleDate,
-
-            soldAt,
-
-            notes:
-              $("saleNotes").value.trim(),
-
-            createdAt:
-              Date.now()
-          };
-
-          transaction.update(
-            inventoryRef,
-            {
-              quantity: remaining,
-              updatedAt: Date.now(),
-              status:
-                remaining > 0
-                  ? "available"
-                  : "out-of-stock"
-            }
-          );
-
-          transaction.set(
-            saleRef,
-            saleData
-          );
-        }
-      );
-
-      showToast(
-        "Sale completed and stock updated successfully."
-      );
-
-      $("saleForm").reset();
-
-      $("saleDate").value =
-        todayString();
-
-      populateSaleInventory();
-
-      calculateSalePreview();
-
-      navigate("history");
-
-    } catch (error) {
-
-      console.error(error);
-
-      showToast(
-        error.message ||
-        "Unable to complete sale.",
-        "error"
-      );
-
-    } finally {
-
-      setButtonLoading(
-        button,
-        false,
-        "Complete Sale & Delivery"
-      );
-    }
-  }
-);
-
-
-/* =========================================================
-   SALES HISTORY
-========================================================= */
-
-function filteredSales() {
+function renderInventory() {
 
   const search =
-    $("historySearch").value
+    $("inventorySearch").value
       .trim()
       .toLowerCase();
 
-  const from =
-    $("historyFrom").value;
+  const filter =
+    $("inventoryFilter").value;
 
-  const to =
-    $("historyTo").value;
+  const category =
+    $("inventoryCategory").value;
 
-  const payment =
-    $("historyPayment").value;
 
-  return sales.filter(sale => {
+  let list = [...inventory];
 
-    const text =
-      [
-        sale.medicineName,
-        sale.customerName,
-        sale.salesmanName,
-        sale.deliveryNumber,
-        sale.batchNo
+
+  if (search) {
+
+    list = list.filter(item => {
+
+      return [
+        item.name,
+        item.batchNumber,
+        item.supplier,
+        item.manufacturer,
+        item.category
       ]
         .join(" ")
-        .toLowerCase();
+        .toLowerCase()
+        .includes(search);
 
-    if (
-      search &&
-      !text.includes(search)
-    ) {
-      return false;
-    }
+    });
 
-    const date =
-      sale.saleDate ||
-      new Date(
-        Number(sale.soldAt || 0)
-      )
-        .toISOString()
-        .slice(0, 10);
-
-    if (from && date < from) {
-      return false;
-    }
-
-    if (to && date > to) {
-      return false;
-    }
-
-    if (
-      payment &&
-      sale.paymentStatus !== payment
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-function renderHistory() {
-
-  const data =
-    filteredSales();
-
-  const target =
-    $("historyTable");
-
-  if (!data.length) {
-
-    target.innerHTML =
-      `<div class="empty-state">
-        No sales found.
-      </div>`;
-
-    return;
   }
 
-  target.innerHTML = `
+
+  if (filter !== "all") {
+
+    list = list.filter(
+      item =>
+        getInventoryStatus(item) === filter
+    );
+
+  }
+
+
+  if (category !== "all") {
+
+    list = list.filter(
+      item =>
+        item.category === category
+    );
+
+  }
+
+
+  const container =
+    $("inventoryTable");
+
+
+  if (!list.length) {
+
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📦</div>
+        <strong>No medicines found</strong>
+        <span>Try changing your filters.</span>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML = `
 
     <table class="data-table">
 
       <thead>
 
         <tr>
+          <th>Medicine</th>
+          <th>Batch</th>
+          <th>Category</th>
+          <th>Quantity</th>
+          <th>Buy Price</th>
+          <th>Sale Price</th>
+          <th>Expiry</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+
+      </thead>
+
+      <tbody>
+
+        ${list.map(item => `
+
+          <tr>
+
+            <td>
+              <strong>${escapeHTML(item.name)}</strong>
+              <small>${escapeHTML(item.supplier || "")}</small>
+            </td>
+
+            <td>${escapeHTML(item.batchNumber)}</td>
+
+            <td>${escapeHTML(item.category)}</td>
+
+            <td>
+              ${Number(item.quantity || 0)}
+              ${escapeHTML(item.unit || "")}
+            </td>
+
+            <td>${money(item.buyPrice)}</td>
+
+            <td>${money(item.salePrice)}</td>
+
+            <td>${escapeHTML(item.expiryDate)}</td>
+
+            <td>${statusHTML(item)}</td>
+
+            <td>
+
+              <div class="action-buttons">
+
+                <button
+                  class="icon-action"
+                  title="Sell"
+                  data-sale-item="${item.id}"
+                >
+                  💰
+                </button>
+
+                <button
+                  class="icon-action"
+                  title="Edit"
+                  data-edit-item="${item.id}"
+                >
+                  ✏️
+                </button>
+
+                <button
+                  class="icon-action delete"
+                  title="Delete"
+                  data-delete-item="${item.id}"
+                >
+                  🗑
+                </button>
+
+              </div>
+
+            </td>
+
+          </tr>
+
+        `).join("")}
+
+      </tbody>
+
+    </table>
+  `;
+
+
+  container
+    .querySelectorAll("[data-edit-item]")
+    .forEach(btn => {
+
+      btn.addEventListener("click", () => {
+
+        openStockModal(
+          btn.dataset.editItem
+        );
+
+      });
+
+    });
+
+
+  container
+    .querySelectorAll("[data-sale-item]")
+    .forEach(btn => {
+
+      btn.addEventListener("click", () => {
+
+        openSaleModal(
+          btn.dataset.saleItem
+        );
+
+      });
+
+    });
+
+
+  container
+    .querySelectorAll("[data-delete-item]")
+    .forEach(btn => {
+
+      btn.addEventListener("click", async () => {
+
+        const id =
+          btn.dataset.deleteItem;
+
+        if (!confirm(
+          "Delete this medicine permanently?"
+        )) return;
+
+        try {
+
+          await deleteDoc(
+            doc(
+              db,
+              "users",
+              currentUser.uid,
+              "inventory",
+              id
+            )
+          );
+
+          showToast("Medicine deleted.");
+
+        } catch (error) {
+
+          showToast(
+            "Delete failed.",
+            "error"
+          );
+
+        }
+
+      });
+
+    });
+
+}
+
+
+/* Inventory filters */
+
+$("inventorySearch").addEventListener(
+  "input",
+  renderInventory
+);
+
+$("inventoryFilter").addEventListener(
+  "change",
+  renderInventory
+);
+
+$("inventoryCategory").addEventListener(
+  "change",
+  renderInventory
+);
+
+
+/* Categories */
+
+function renderCategories() {
+
+  const categories =
+    [...new Set(
+      inventory
+        .map(x => x.category)
+        .filter(Boolean)
+    )]
+    .sort();
+
+  $("inventoryCategory").innerHTML = `
+    <option value="all">All Categories</option>
+
+    ${categories.map(category => `
+      <option value="${escapeHTML(category)}">
+        ${escapeHTML(category)}
+      </option>
+    `).join("")}
+  `;
+
+}
+
+
+/* =====================================================
+   SALES MODAL
+===================================================== */
+
+function generateInvoiceNumber() {
+
+  const number =
+    String(Date.now()).slice(-6);
+
+  return "PM-" + number;
+
+}
+
+
+function openSaleModal(itemId = null) {
+
+  $("saleForm").reset();
+
+  $("deliveryDate").value =
+    todayString();
+
+  $("invoiceNumber").value =
+    generateInvoiceNumber();
+
+  populateSaleInventory(itemId);
+
+  updateSalePreview();
+
+  showModal("saleModal");
+
+}
+
+
+function populateSaleInventory(selectedId = null) {
+
+  const options =
+    inventory
+      .filter(item => Number(item.quantity || 0) > 0)
+      .filter(item => !isExpired(item.expiryDate))
+      .map(item => `
+
+        <option
+          value="${item.id}"
+          ${selectedId === item.id ? "selected" : ""}
+        >
+          ${escapeHTML(item.name)}
+          | Batch: ${escapeHTML(item.batchNumber)}
+          | Stock: ${item.quantity} ${escapeHTML(item.unit || "")}
+        </option>
+
+      `)
+      .join("");
+
+  $("saleInventory").innerHTML = `
+
+    <option value="">
+      Select medicine
+    </option>
+
+    ${options}
+
+  `;
+
+  updateSelectedSaleItem();
+
+}
+
+
+$("saleInventory").addEventListener(
+  "change",
+  updateSelectedSaleItem
+);
+
+
+function updateSelectedSaleItem() {
+
+  const id =
+    $("saleInventory").value;
+
+  const item =
+    inventory.find(x => x.id === id);
+
+  if (!item) {
+
+    $("availableStock").textContent = "";
+
+    $("saleUnitPrice").value = "";
+
+    return;
+
+  }
+
+  $("availableStock").textContent =
+    `Available: ${item.quantity} ${item.unit || ""}`;
+
+  $("saleUnitPrice").value =
+    item.salePrice || 0;
+
+  updateSalePreview();
+
+}
+
+
+$("saleQuantity").addEventListener(
+  "input",
+  updateSalePreview
+);
+
+$("saleUnitPrice").addEventListener(
+  "input",
+  updateSalePreview
+);
+
+$("saleDiscount").addEventListener(
+  "input",
+  updateSalePreview
+);
+
+
+function calculateSaleTotals() {
+
+  const quantity =
+    Number($("saleQuantity").value || 0);
+
+  const price =
+    Number($("saleUnitPrice").value || 0);
+
+  const discount =
+    Number($("saleDiscount").value || 0);
+
+  const subtotal =
+    quantity * price;
+
+  const total =
+    Math.max(
+      0,
+      subtotal - discount
+    );
+
+  return {
+    quantity,
+    price,
+    discount,
+    subtotal,
+    total
+  };
+
+}
+
+
+function updateSalePreview() {
+
+  const totals =
+    calculateSaleTotals();
+
+  $("saleSubtotal").textContent =
+    money(totals.subtotal);
+
+  $("saleDiscountPreview").textContent =
+    money(totals.discount);
+
+  $("saleGrandTotal").textContent =
+    money(totals.total);
+
+}
+
+
+/* =====================================================
+   COMPLETE SALE
+===================================================== */
+
+$("saleForm").addEventListener("submit", async e => {
+
+  e.preventDefault();
+
+  if (!currentUser) return;
+
+  const inventoryId =
+    $("saleInventory").value;
+
+  if (!inventoryId) {
+
+    showToast(
+      "Medicine select karein.",
+      "error"
+    );
+
+    return;
+
+  }
+
+
+  const quantity =
+    Number($("saleQuantity").value);
+
+  const salePrice =
+    Number($("saleUnitPrice").value);
+
+  const discount =
+    Number($("saleDiscount").value || 0);
+
+  const customer =
+    $("customerName").value.trim();
+
+  const totals =
+    calculateSaleTotals();
+
+
+  if (quantity <= 0) {
+
+    showToast(
+      "Quantity valid honi chahiye.",
+      "error"
+    );
+
+    return;
+
+  }
+
+
+  if (salePrice < 0) {
+
+    showToast(
+      "Sale price invalid hai.",
+      "error"
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    const inventoryRef =
+      doc(
+        db,
+        "users",
+        currentUser.uid,
+        "inventory",
+        inventoryId
+      );
+
+
+    const salesCollection =
+      collection(
+        db,
+        "users",
+        currentUser.uid,
+        "sales"
+      );
+
+
+    const saleRef =
+      doc(salesCollection);
+
+
+    await runTransaction(
+      db,
+      async transaction => {
+
+        const stockSnapshot =
+          await transaction.get(
+            inventoryRef
+          );
+
+
+        if (!stockSnapshot.exists()) {
+
+          throw new Error(
+            "Medicine not found."
+          );
+
+        }
+
+
+        const item =
+          stockSnapshot.data();
+
+
+        const currentQty =
+          Number(item.quantity || 0);
+
+
+        if (quantity > currentQty) {
+
+          throw new Error(
+            `Only ${currentQty} ${item.unit || ""} available hai.`
+          );
+
+        }
+
+
+        const remaining =
+          currentQty - quantity;
+
+
+        const costPerUnit =
+          Number(item.buyPrice || 0);
+
+
+        const totalCost =
+          costPerUnit * quantity;
+
+
+        const profit =
+          totals.total - totalCost;
+
+
+        transaction.update(
+          inventoryRef,
+          {
+            quantity: remaining,
+            updatedAt: Date.now()
+          }
+        );
+
+
+        transaction.set(
+          saleRef,
+          {
+
+            invoiceNumber:
+              $("invoiceNumber").value,
+
+            inventoryId,
+
+            medicineName:
+              item.name || "",
+
+            category:
+              item.category || "",
+
+            batchNumber:
+              item.batchNumber || "",
+
+            customerName:
+              customer,
+
+            customerPhone:
+              $("customerPhone").value.trim(),
+
+            salesmanName:
+              $("salesmanName").value.trim(),
+
+            salesmanPhone:
+              $("salesmanPhone").value.trim(),
+
+            quantity,
+
+            unit:
+              item.unit || "",
+
+            buyPrice:
+              costPerUnit,
+
+            salePrice:
+
+              salePrice,
+
+            subtotal:
+              totals.subtotal,
+
+            discount,
+
+            total:
+              totals.total,
+
+            profit,
+
+            deliveryDate:
+              $("deliveryDate").value,
+
+            paymentStatus:
+              $("paymentStatus").value,
+
+            paidAmount:
+              Number($("paidAmount").value || 0),
+
+            remainingAmount:
+              Math.max(
+                0,
+                totals.total -
+                Number($("paidAmount").value || 0)
+              ),
+
+            notes:
+              $("saleNotes").value.trim(),
+
+            createdAt:
+              Date.now()
+
+          }
+        );
+
+      }
+    );
+
+
+    currentInvoice = {
+
+      invoiceNumber:
+        $("invoiceNumber").value,
+
+      medicineName:
+        inventory.find(
+          x => x.id === inventoryId
+        )?.name || "",
+
+      batchNumber:
+        inventory.find(
+          x => x.id === inventoryId
+        )?.batchNumber || "",
+
+      customerName:
+        customer,
+
+      customerPhone:
+        $("customerPhone").value.trim(),
+
+      salesmanName:
+        $("salesmanName").value.trim(),
+
+      salesmanPhone:
+        $("salesmanPhone").value.trim(),
+
+      quantity,
+
+      unit:
+        inventory.find(
+          x => x.id === inventoryId
+        )?.unit || "",
+
+      salePrice,
+
+      subtotal:
+        totals.subtotal,
+
+      discount,
+
+      total:
+        totals.total,
+
+      paidAmount:
+        Number($("paidAmount").value || 0),
+
+      remainingAmount:
+        Math.max(
+          0,
+          totals.total -
+          Number($("paidAmount").value || 0)
+        ),
+
+      deliveryDate:
+        $("deliveryDate").value
+
+    };
+
+
+    hideModal("saleModal");
+
+    showToast(
+      "Sale completed successfully."
+    );
+
+    renderInvoice(currentInvoice);
+
+    showModal("invoiceModal");
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    showToast(
+      error.message ||
+      "Sale complete nahi ho saki.",
+      "error"
+    );
+
+  }
+
+});
+
+
+$("quickSaleBtn").addEventListener(
+  "click",
+  () => openSaleModal()
+);
+
+$("quickNewSale").addEventListener(
+  "click",
+  () => openSaleModal()
+);
+
+$("salesNewBtn").addEventListener(
+  "click",
+  () => openSaleModal()
+);
+
+
+/* =====================================================
+   SALES RENDER
+===================================================== */
+
+function renderSales() {
+
+  const search =
+    $("salesSearch").value
+      .trim()
+      .toLowerCase();
+
+  const period =
+    $("salesPeriod").value;
+
+
+  let list =
+    [...sales]
+      .sort(
+        (a, b) =>
+          Number(b.createdAt || 0) -
+          Number(a.createdAt || 0)
+      );
+
+
+  if (search) {
+
+    list = list.filter(sale => {
+
+      return [
+        sale.medicineName,
+        sale.customerName,
+        sale.salesmanName,
+        sale.invoiceNumber,
+        sale.batchNumber
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search);
+
+    });
+
+  }
+
+
+  const today =
+    todayString();
+
+  if (period === "today") {
+
+    list =
+      list.filter(
+        x =>
+          x.deliveryDate === today
+      );
+
+  }
+
+
+  if (period === "month") {
+
+    const prefix =
+      today.slice(0, 7);
+
+    list =
+      list.filter(
+        x =>
+          String(x.deliveryDate || "")
+            .startsWith(prefix)
+      );
+
+  }
+
+
+  if (period === "year") {
+
+    const prefix =
+      today.slice(0, 4);
+
+    list =
+      list.filter(
+        x =>
+          String(x.deliveryDate || "")
+            .startsWith(prefix)
+      );
+
+  }
+
+
+  if (!list.length) {
+
+    $("salesTable").innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">💰</div>
+        <strong>No sales found</strong>
+        <span>Sales will appear here after completing a sale.</span>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  $("salesTable").innerHTML = `
+
+    <table class="data-table">
+
+      <thead>
+
+        <tr>
+          <th>Invoice</th>
           <th>Date</th>
-          <th>Delivery No.</th>
           <th>Medicine</th>
           <th>Customer</th>
           <th>Salesman</th>
@@ -2676,91 +1856,74 @@ function renderHistory() {
           <th>Total</th>
           <th>Profit</th>
           <th>Payment</th>
-          <th>View</th>
+          <th>Action</th>
         </tr>
 
       </thead>
 
       <tbody>
 
-        ${data.map(sale => `
+        ${list.map(sale => `
 
           <tr>
 
             <td>
-              ${escapeHTML(
-                sale.saleDate ||
-                dateFromTimestamp(sale.soldAt)
-              )}
-            </td>
-
-            <td>
-              ${escapeHTML(
-                sale.deliveryNumber || "-"
-              )}
-            </td>
-
-            <td>
               <strong>
-                ${escapeHTML(
-                  sale.medicineName
-                )}
+                ${escapeHTML(sale.invoiceNumber)}
               </strong>
-              <small style="display:block;color:var(--muted)">
-                Batch: ${escapeHTML(
-                  sale.batchNo || "-"
-                )}
+            </td>
+
+            <td>
+              ${escapeHTML(sale.deliveryDate)}
+            </td>
+
+            <td>
+              ${escapeHTML(sale.medicineName)}
+              <small>
+                ${escapeHTML(sale.batchNumber)}
               </small>
             </td>
 
             <td>
-              ${escapeHTML(
-                sale.customerName
-              )}
+              ${escapeHTML(sale.customerName)}
+              <small>
+                ${escapeHTML(sale.customerPhone || "")}
+              </small>
             </td>
 
             <td>
-              ${escapeHTML(
-                sale.salesmanName
-              )}
+              ${escapeHTML(sale.salesmanName || "-")}
             </td>
 
             <td>
               ${sale.quantity}
+              ${escapeHTML(sale.unit || "")}
             </td>
 
             <td>
-              ${money(
-                sale.totalSale
-              )}
+              ${money(sale.total)}
             </td>
 
             <td>
               <strong>
-                ${money(
-                  sale.profit
-                )}
+                ${money(sale.profit)}
               </strong>
             </td>
 
             <td>
-              <span class="badge ${
-                sale.paymentStatus === "Paid"
-                  ? "badge-green"
-                  : "badge-orange"
-              }">
-                ${escapeHTML(
-                  sale.paymentStatus || "-"
-                )}
-              </span>
+              ${paymentBadge(sale.paymentStatus)}
             </td>
 
             <td>
+
               <button
-                class="table-action"
-                data-view-sale="${sale.id}">
-                View
+                class="icon-action"
+                data-print-sale="${sale.id}"
+                title="Invoice"
+              >
+                🧾
               </button>
+
             </td>
 
           </tr>
@@ -2772,1426 +1935,1333 @@ function renderHistory() {
     </table>
   `;
 
-  target
-    .querySelectorAll(
-      "[data-view-sale]"
-    )
-    .forEach(button => {
 
-      button.addEventListener(
-        "click",
-        () => {
+  $("salesTable")
+    .querySelectorAll("[data-print-sale]")
+    .forEach(btn => {
 
-          viewSale(
-            button.dataset.viewSale
+      btn.addEventListener("click", () => {
+
+        const sale =
+          sales.find(
+            x =>
+              x.id === btn.dataset.printSale
           );
-        }
-      );
+
+        if (!sale) return;
+
+        currentInvoice =
+          invoiceFromSale(sale);
+
+        renderInvoice(currentInvoice);
+
+        showModal("invoiceModal");
+
+      });
+
     });
+
 }
 
 
-/* =========================================================
-   VIEW SALE
-========================================================= */
+function paymentBadge(status) {
 
-function viewSale(id) {
+  const labels = {
 
-  const sale =
-    sales.find(
-      item => item.id === id
-    );
+    paid: "PAID",
+    partial: "PARTIAL",
+    unpaid: "UNPAID"
 
-  if (!sale) return;
+  };
 
-  currentSaleForPrint =
-    sale;
-
-  $("saleDetailsContent").innerHTML = `
-
-    <div class="form-grid">
-
-      <div class="form-group">
-        <label>Delivery Number</label>
-        <div>${escapeHTML(
-          sale.deliveryNumber || "-"
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Date & Time</label>
-        <div>${dateTimeFromTimestamp(
-          sale.soldAt
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Medicine</label>
-        <div>${escapeHTML(
-          sale.medicineName
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Batch</label>
-        <div>${escapeHTML(
-          sale.batchNo || "-"
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Quantity</label>
-        <div>${sale.quantity} ${
-          escapeHTML(sale.unit || "")
-        }</div>
-      </div>
-
-      <div class="form-group">
-        <label>Unit Sale Price</label>
-        <div>${money(
-          sale.unitSalePrice
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Customer</label>
-        <div>${escapeHTML(
-          sale.customerName
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Customer Number</label>
-        <div>${escapeHTML(
-          sale.customerPhone || "-"
-        )}</div>
-      </div>
-
-      <div class="form-group full">
-        <label>Customer Address</label>
-        <div>${escapeHTML(
-          sale.customerAddress || "-"
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Salesman</label>
-        <div>${escapeHTML(
-          sale.salesmanName
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Salesman Number</label>
-        <div>${escapeHTML(
-          sale.salesmanPhone || "-"
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Gross Sale</label>
-        <div>${money(
-          sale.grossAmount
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Discount</label>
-        <div>${money(
-          sale.discount
-        )}</div>
-      </div>
-
-      <div class="form-group">
-        <label>Total Sale</label>
-        <div>
-          <strong>
-            ${money(
-              sale.totalSale
-            )}
-          </strong>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Profit</label>
-        <div>
-          <strong>
-            ${money(
-              sale.profit
-            )}
-          </strong>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Payment</label>
-        <div>${escapeHTML(
-          sale.paymentStatus || "-"
-        )}</div>
-      </div>
-
-      <div class="form-group full">
-        <label>Notes</label>
-        <div>${escapeHTML(
-          sale.notes || "-"
-        )}</div>
-      </div>
-
-    </div>
+  return `
+    <span class="status-badge ${
+      status === "paid"
+        ? "status-good"
+        : status === "partial"
+          ? "status-soon"
+          : "status-expired"
+    }">
+      ${labels[status] || "UNKNOWN"}
+    </span>
   `;
 
-  $("viewSaleModal")
-    .classList.remove("hidden");
 }
 
 
-/* =========================================================
-   PRINT INVOICE
-========================================================= */
+$("salesSearch").addEventListener(
+  "input",
+  renderSales
+);
 
-$("printSaleBtn").addEventListener(
-  "click",
-  () => {
-
-    const sale =
-      currentSaleForPrint;
-
-    if (!sale) return;
-
-    const business =
-      currentProfile?.businessName ||
-      "Poultry Medicine Business";
-
-    const printWindow =
-      window.open(
-        "",
-        "_blank"
-      );
-
-    printWindow.document.write(`
-
-      <!DOCTYPE html>
-
-      <html>
-
-      <head>
-
-        <title>
-          ${escapeHTML(
-            sale.deliveryNumber || "Invoice"
-          )}
-        </title>
-
-        <style>
-
-          body {
-            font-family: Arial, sans-serif;
-            padding: 30px;
-            color: #111;
-          }
-
-          h1 {
-            margin-bottom: 5px;
-          }
-
-          .muted {
-            color: #666;
-          }
-
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 25px;
-          }
-
-          th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: left;
-          }
-
-          .total {
-            margin-top: 20px;
-            font-size: 18px;
-          }
-
-          @media print {
-            body {
-              padding: 10px;
-            }
-          }
-
-        </style>
-
-      </head>
-
-      <body>
-
-        <h1>
-          ${escapeHTML(business)}
-        </h1>
-
-        <p class="muted">
-          Poultry Medicine Sales / Delivery Invoice
-        </p>
-
-        <hr>
-
-        <p>
-          <strong>Delivery No:</strong>
-          ${escapeHTML(
-            sale.deliveryNumber || "-"
-          )}
-        </p>
-
-        <p>
-          <strong>Date:</strong>
-          ${escapeHTML(
-            sale.saleDate || "-"
-          )}
-        </p>
-
-        <p>
-          <strong>Customer:</strong>
-          ${escapeHTML(
-            sale.customerName
-          )}
-        </p>
-
-        <p>
-          <strong>Customer No:</strong>
-          ${escapeHTML(
-            sale.customerPhone || "-"
-          )}
-        </p>
-
-        <p>
-          <strong>Salesman:</strong>
-          ${escapeHTML(
-            sale.salesmanName
-          )}
-        </p>
-
-        <p>
-          <strong>Salesman No:</strong>
-          ${escapeHTML(
-            sale.salesmanPhone || "-"
-          )}
-        </p>
-
-        <table>
-
-          <thead>
-
-            <tr>
-              <th>Medicine</th>
-              <th>Batch</th>
-              <th>Qty</th>
-              <th>Unit Price</th>
-              <th>Total</th>
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            <tr>
-
-              <td>
-                ${escapeHTML(
-                  sale.medicineName
-                )}
-              </td>
-
-              <td>
-                ${escapeHTML(
-                  sale.batchNo || "-"
-                )}
-              </td>
-
-              <td>
-                ${sale.quantity}
-              </td>
-
-              <td>
-                ${money(
-                  sale.unitSalePrice
-                )}
-              </td>
-
-              <td>
-                ${money(
-                  sale.totalSale
-                )}
-              </td>
-
-            </tr>
-
-          </tbody>
-
-        </table>
-
-        <div class="total">
-
-          <p>
-            <strong>Gross:</strong>
-            ${money(
-              sale.grossAmount
-            )}
-          </p>
-
-          <p>
-            <strong>Discount:</strong>
-            ${money(
-              sale.discount
-            )}
-          </p>
-
-          <p>
-            <strong>Grand Total:</strong>
-            ${money(
-              sale.totalSale
-            )}
-          </p>
-
-        </div>
-
-        <br>
-
-        <p>
-          Payment:
-          <strong>
-            ${escapeHTML(
-              sale.paymentStatus || "-"
-            )}
-          </strong>
-        </p>
-
-      </body>
-
-      </html>
-
-    `);
-
-    printWindow.document.close();
-
-    printWindow.focus();
-
-    setTimeout(() => {
-
-      printWindow.print();
-
-    }, 400);
-  }
+$("salesPeriod").addEventListener(
+  "change",
+  renderSales
 );
 
 
-/* =========================================================
-   CUSTOMERS
-========================================================= */
+/* =====================================================
+   CUSTOMER DATA
+===================================================== */
+
+function getCustomers() {
+
+  const map = new Map();
+
+
+  sales.forEach(sale => {
+
+    const name =
+      sale.customerName?.trim();
+
+    if (!name) return;
+
+    const key =
+      name.toLowerCase();
+
+
+    if (!map.has(key)) {
+
+      map.set(key, {
+
+        name,
+
+        phone:
+          sale.customerPhone || "",
+
+        sales: 0,
+
+        quantity: 0,
+
+        profit: 0,
+
+        lastDate:
+          sale.deliveryDate || ""
+
+      });
+
+    }
+
+
+    const customer =
+      map.get(key);
+
+
+    customer.sales +=
+      Number(sale.total || 0);
+
+    customer.quantity +=
+      Number(sale.quantity || 0);
+
+    customer.profit +=
+      Number(sale.profit || 0);
+
+
+    if (
+      String(sale.deliveryDate || "") >
+      String(customer.lastDate || "")
+    ) {
+
+      customer.lastDate =
+        sale.deliveryDate;
+
+    }
+
+  });
+
+
+  return [...map.values()];
+
+}
+
 
 function renderCustomers() {
 
-  const map =
-    {};
+  const search =
+    $("customerSearch").value
+      .trim()
+      .toLowerCase();
+
+
+  let list =
+    getCustomers();
+
+
+  if (search) {
+
+    list =
+      list.filter(customer =>
+        `${customer.name} ${customer.phone}`
+          .toLowerCase()
+          .includes(search)
+      );
+
+  }
+
+
+  if (!list.length) {
+
+    $("customersGrid").innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">👥</div>
+        <strong>No customers found</strong>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  $("customersGrid").innerHTML =
+
+    list.map(customer => `
+
+      <div class="person-card">
+
+        <div class="person-top">
+
+          <div class="person-avatar">
+            ${escapeHTML(
+              customer.name.charAt(0).toUpperCase()
+            )}
+          </div>
+
+          <div>
+            <h3>
+              ${escapeHTML(customer.name)}
+            </h3>
+
+            <small>
+              ${escapeHTML(customer.phone || "No phone")}
+            </small>
+          </div>
+
+        </div>
+
+
+        <div class="person-stats">
+
+          <div class="person-stat">
+            <span>Total Purchases</span>
+            <strong>${money(customer.sales)}</strong>
+          </div>
+
+          <div class="person-stat">
+            <span>Quantity</span>
+            <strong>${customer.quantity}</strong>
+          </div>
+
+          <div class="person-stat">
+            <span>Profit</span>
+            <strong>${money(customer.profit)}</strong>
+          </div>
+
+          <div class="person-stat">
+            <span>Last Purchase</span>
+            <strong>${escapeHTML(customer.lastDate)}</strong>
+          </div>
+
+        </div>
+
+      </div>
+
+    `).join("");
+
+}
+
+
+$("customerSearch").addEventListener(
+  "input",
+  renderCustomers
+);
+
+
+/* =====================================================
+   SALESMEN
+===================================================== */
+
+function getSalesmen() {
+
+  const map = new Map();
+
+
+  sales.forEach(sale => {
+
+    const name =
+      sale.salesmanName?.trim();
+
+    if (!name) return;
+
+
+    const key =
+      name.toLowerCase();
+
+
+    if (!map.has(key)) {
+
+      map.set(key, {
+
+        name,
+
+        phone:
+          sale.salesmanPhone || "",
+
+        deliveries: 0,
+
+        quantity: 0,
+
+        sales: 0,
+
+        profit: 0
+
+      });
+
+    }
+
+
+    const person =
+      map.get(key);
+
+
+    person.deliveries++;
+
+    person.quantity +=
+      Number(sale.quantity || 0);
+
+    person.sales +=
+      Number(sale.total || 0);
+
+    person.profit +=
+      Number(sale.profit || 0);
+
+  });
+
+
+  return [...map.values()];
+
+}
+
+
+function renderSalesmen() {
+
+  const search =
+    $("salesmanSearch").value
+      .trim()
+      .toLowerCase();
+
+
+  let list =
+    getSalesmen();
+
+
+  if (search) {
+
+    list =
+      list.filter(person =>
+        `${person.name} ${person.phone}`
+          .toLowerCase()
+          .includes(search)
+      );
+
+  }
+
+
+  if (!list.length) {
+
+    $("salesmenGrid").innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🚚</div>
+        <strong>No salesman records found</strong>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  $("salesmenGrid").innerHTML =
+
+    list.map(person => `
+
+      <div class="person-card">
+
+        <div class="person-top">
+
+          <div class="person-avatar">
+            🚚
+          </div>
+
+          <div>
+            <h3>
+              ${escapeHTML(person.name)}
+            </h3>
+
+            <small>
+              ${escapeHTML(person.phone || "No phone")}
+            </small>
+          </div>
+
+        </div>
+
+
+        <div class="person-stats">
+
+          <div class="person-stat">
+            <span>Deliveries</span>
+            <strong>${person.deliveries}</strong>
+          </div>
+
+          <div class="person-stat">
+            <span>Quantity</span>
+            <strong>${person.quantity}</strong>
+          </div>
+
+          <div class="person-stat">
+            <span>Sales</span>
+            <strong>${money(person.sales)}</strong>
+          </div>
+
+          <div class="person-stat">
+            <span>Profit</span>
+            <strong>${money(person.profit)}</strong>
+          </div>
+
+        </div>
+
+      </div>
+
+    `).join("");
+
+}
+
+
+$("salesmanSearch").addEventListener(
+  "input",
+  renderSalesmen
+);
+
+
+/* =====================================================
+   REPORTS
+===================================================== */
+
+function datePrefix(type) {
+
+  const today =
+    todayString();
+
+  if (type === "today") {
+    return today;
+  }
+
+  if (type === "month") {
+    return today.slice(0, 7);
+  }
+
+  if (type === "year") {
+    return today.slice(0, 4);
+  }
+
+  return "";
+
+}
+
+
+function calculateProfit(type) {
+
+  const prefix =
+    datePrefix(type);
+
+
+  return sales
+    .filter(sale => {
+
+      if (!prefix) return true;
+
+      return String(
+        sale.deliveryDate || ""
+      ).startsWith(prefix);
+
+    })
+    .reduce(
+      (sum, sale) =>
+        sum + Number(sale.profit || 0),
+      0
+    );
+
+}
+
+
+function calculateSales(type) {
+
+  const prefix =
+    datePrefix(type);
+
+
+  return sales
+    .filter(sale => {
+
+      if (!prefix) return true;
+
+      return String(
+        sale.deliveryDate || ""
+      ).startsWith(prefix);
+
+    })
+    .reduce(
+      (sum, sale) =>
+        sum + Number(sale.total || 0),
+      0
+    );
+
+}
+
+
+function renderReports() {
+
+  $("reportTodayProfit").textContent =
+    money(calculateProfit("today"));
+
+  $("reportMonthProfit").textContent =
+    money(calculateProfit("month"));
+
+  $("reportYearProfit").textContent =
+    money(calculateProfit("year"));
+
+  $("reportTotalProfit").textContent =
+    money(calculateProfit("all"));
+
+
+  const medicineMap = new Map();
+
 
   sales.forEach(sale => {
 
     const key =
-      `${sale.customerName || "Unknown"}|${
-        sale.customerPhone || ""
-      }`;
-
-    if (!map[key]) {
-
-      map[key] = {
-
-        name:
-          sale.customerName || "Unknown",
-
-        phone:
-          sale.customerPhone || "-",
-
-        address:
-          sale.customerAddress || "-",
-
-        orders: 0,
-
-        quantity: 0,
-
-        total: 0,
-
-        profit: 0,
-
-        lastSale: sale.soldAt || 0
-      };
-    }
-
-    map[key].orders += 1;
-
-    map[key].quantity +=
-      Number(
-        sale.quantity || 0
-      );
-
-    map[key].total +=
-      Number(
-        sale.totalSale || 0
-      );
-
-    map[key].profit +=
-      Number(
-        sale.profit || 0
-      );
-
-    map[key].lastSale =
-      Math.max(
-        map[key].lastSale,
-        Number(
-          sale.soldAt || 0
-        )
-      );
-  });
-
-  const customers =
-    Object.values(map);
-
-  const target =
-    $("customersTable");
-
-  if (!customers.length) {
-
-    target.innerHTML =
-      `<div class="empty-state">
-        No customers yet.
-      </div>`;
-
-    return;
-  }
-
-  target.innerHTML = `
-
-    <table class="data-table">
-
-      <thead>
-
-        <tr>
-          <th>Customer</th>
-          <th>Number</th>
-          <th>Address</th>
-          <th>Orders</th>
-          <th>Quantity</th>
-          <th>Total Purchase</th>
-          <th>Profit</th>
-          <th>Last Sale</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${customers.map(customer => `
-
-          <tr>
-
-            <td>
-              <strong>
-                ${escapeHTML(
-                  customer.name
-                )}
-              </strong>
-            </td>
-
-            <td>
-              ${escapeHTML(
-                customer.phone
-              )}
-            </td>
-
-            <td>
-              ${escapeHTML(
-                customer.address
-              )}
-            </td>
-
-            <td>
-              ${customer.orders}
-            </td>
-
-            <td>
-              ${customer.quantity}
-            </td>
-
-            <td>
-              ${money(
-                customer.total
-              )}
-            </td>
-
-            <td>
-              ${money(
-                customer.profit
-              )}
-            </td>
-
-            <td>
-              ${dateFromTimestamp(
-                customer.lastSale
-              )}
-            </td>
-
-          </tr>
-
-        `).join("")}
-
-      </tbody>
-
-    </table>
-  `;
-}
-
-
-/* =========================================================
-   DELIVERIES
-========================================================= */
-
-function filteredDeliveries() {
-
-  const search =
-    $("deliverySearch").value
-      .trim()
-      .toLowerCase();
-
-  const from =
-    $("deliveryFrom").value;
-
-  const to =
-    $("deliveryTo").value;
-
-  return sales.filter(sale => {
-
-    const text =
-      [
-        sale.salesmanName,
-        sale.salesmanPhone,
-        sale.customerName,
-        sale.medicineName,
-        sale.deliveryNumber
-      ]
-        .join(" ")
-        .toLowerCase();
-
-    if (
-      search &&
-      !text.includes(search)
-    ) {
-      return false;
-    }
-
-    const date =
-      sale.saleDate ||
-      new Date(
-        Number(sale.soldAt || 0)
-      )
-        .toISOString()
-        .slice(0, 10);
-
-    if (from && date < from) {
-      return false;
-    }
-
-    if (to && date > to) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-function renderDeliveries() {
-
-  const data =
-    filteredDeliveries();
-
-  const quantity =
-    data.reduce(
-      (sum, sale) =>
-        sum +
-        Number(
-          sale.quantity || 0
-        ),
-      0
-    );
-
-  const deliverySales =
-    data.reduce(
-      (sum, sale) =>
-        sum +
-        Number(
-          sale.totalSale || 0
-        ),
-      0
-    );
-
-  const deliveryProfit =
-    data.reduce(
-      (sum, sale) =>
-        sum +
-        Number(
-          sale.profit || 0
-        ),
-      0
-    );
-
-  $("deliveryCount").textContent =
-    data.length;
-
-  $("deliveryQuantity").textContent =
-    quantity;
-
-  $("deliverySales").textContent =
-    money(deliverySales);
-
-  $("deliveryProfit").textContent =
-    money(deliveryProfit);
-
-  const target =
-    $("deliveriesTable");
-
-  if (!data.length) {
-
-    target.innerHTML =
-      `<div class="empty-state">
-        No delivery records found.
-      </div>`;
-
-    return;
-  }
-
-  target.innerHTML = `
-
-    <table class="data-table">
-
-      <thead>
-
-        <tr>
-          <th>Date</th>
-          <th>Delivery No.</th>
-          <th>Salesman</th>
-          <th>Salesman No.</th>
-          <th>Customer</th>
-          <th>Medicine</th>
-          <th>Batch</th>
-          <th>Qty</th>
-          <th>Total</th>
-          <th>Profit</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${data.map(sale => `
-
-          <tr>
-
-            <td>
-              ${escapeHTML(
-                sale.saleDate || "-"
-              )}
-            </td>
-
-            <td>
-              ${escapeHTML(
-                sale.deliveryNumber || "-"
-              )}
-            </td>
-
-            <td>
-              <strong>
-                ${escapeHTML(
-                  sale.salesmanName
-                )}
-              </strong>
-            </td>
-
-            <td>
-              ${escapeHTML(
-                sale.salesmanPhone || "-"
-              )}
-            </td>
-
-            <td>
-              ${escapeHTML(
-                sale.customerName
-              )}
-            </td>
-
-            <td>
-              ${escapeHTML(
-                sale.medicineName
-              )}
-            </td>
-
-            <td>
-              ${escapeHTML(
-                sale.batchNo || "-"
-              )}
-            </td>
-
-            <td>
-              ${sale.quantity}
-            </td>
-
-            <td>
-              ${money(
-                sale.totalSale
-              )}
-            </td>
-
-            <td>
-              ${money(
-                sale.profit
-              )}
-            </td>
-
-          </tr>
-
-        `).join("")}
-
-      </tbody>
-
-    </table>
-  `;
-}
-
-
-/* =========================================================
-   REPORTS
-========================================================= */
-
-function renderReports() {
-
-  const totals =
-    calculateProfitTotals();
-
-  $("reportTodayProfit").textContent =
-    money(totals.todayProfit);
-
-  $("reportMonthProfit").textContent =
-    money(totals.monthProfit);
-
-  $("reportYearProfit").textContent =
-    money(totals.yearProfit);
-
-  $("reportAllProfit").textContent =
-    money(totals.totalProfit);
-
-  renderTopMedicines();
-  renderTopSalesmen();
-  renderProfitChart();
-}
-
-function renderTopMedicines() {
-
-  const map =
-    {};
-
-  sales.forEach(sale => {
-
-    const name =
       sale.medicineName || "Unknown";
 
-    if (!map[name]) {
+    if (!medicineMap.has(key)) {
 
-      map[name] = {
+      medicineMap.set(key, {
+
+        name: key,
+
         quantity: 0,
+
         sales: 0,
+
         profit: 0
-      };
+
+      });
+
     }
 
-    map[name].quantity +=
-      Number(
-        sale.quantity || 0
-      );
 
-    map[name].sales +=
-      Number(
-        sale.totalSale || 0
-      );
+    const item =
+      medicineMap.get(key);
 
-    map[name].profit +=
-      Number(
-        sale.profit || 0
-      );
+
+    item.quantity +=
+      Number(sale.quantity || 0);
+
+    item.sales +=
+      Number(sale.total || 0);
+
+    item.profit +=
+      Number(sale.profit || 0);
+
   });
 
-  const list =
-    Object.entries(map)
+
+  const topMedicines =
+    [...medicineMap.values()]
       .sort(
         (a, b) =>
-          b[1].quantity -
-          a[1].quantity
+          b.quantity - a.quantity
       )
-      .slice(0, 8);
+      .slice(0, 5);
+
 
   $("topMedicines").innerHTML =
-    list.length
-      ? list.map(
-          ([name, data]) => `
 
-            <div class="rank-item">
+    topMedicines.length
 
-              <div>
+      ? topMedicines.map(item => `
 
-                <strong>
-                  ${escapeHTML(name)}
-                </strong>
+          <div class="alert-item">
 
-                <span>
-                  ${data.quantity} units sold
-                </span>
+            <div>
+              <strong>
+                ${escapeHTML(item.name)}
+              </strong>
 
-              </div>
-
-              <div>
-
-                <strong>
-                  ${money(data.profit)}
-                </strong>
-
-                <span>
-                  Profit
-                </span>
-
-              </div>
-
-            </div>
-          `
-        ).join("")
-      : `<div class="empty-state">
-          No sales data.
-        </div>`;
-}
-
-function renderTopSalesmen() {
-
-  const map =
-    {};
-
-  sales.forEach(sale => {
-
-    const name =
-      sale.salesmanName ||
-      "Unknown";
-
-    if (!map[name]) {
-
-      map[name] = {
-        deliveries: 0,
-        quantity: 0,
-        sales: 0
-      };
-    }
-
-    map[name].deliveries += 1;
-
-    map[name].quantity +=
-      Number(
-        sale.quantity || 0
-      );
-
-    map[name].sales +=
-      Number(
-        sale.totalSale || 0
-      );
-  });
-
-  const list =
-    Object.entries(map)
-      .sort(
-        (a, b) =>
-          b[1].deliveries -
-          a[1].deliveries
-      )
-      .slice(0, 8);
-
-  $("topSalesmen").innerHTML =
-    list.length
-      ? list.map(
-          ([name, data]) => `
-
-            <div class="rank-item">
-
-              <div>
-
-                <strong>
-                  ${escapeHTML(name)}
-                </strong>
-
-                <span>
-                  ${data.deliveries} deliveries
-                </span>
-
-              </div>
-
-              <div>
-
-                <strong>
-                  ${data.quantity}
-                </strong>
-
-                <span>
-                  units
-                </span>
-
-              </div>
-
+              <small>
+                ${item.quantity} units sold
+              </small>
             </div>
 
-          `
-        ).join("")
-      : `<div class="empty-state">
-          No delivery data.
-        </div>`;
-}
+            <div>
+              <strong>
+                ${money(item.profit)}
+              </strong>
 
-function renderProfitChart() {
+              <small>
+                Profit
+              </small>
+            </div>
 
-  const target =
-    $("profitChart");
-
-  const days = [];
-
-  for (
-    let i = 6;
-    i >= 0;
-    i--
-  ) {
-
-    const d =
-      new Date();
-
-    d.setDate(
-      d.getDate() - i
-    );
-
-    const date =
-      d.toISOString()
-        .slice(0, 10);
-
-    const label =
-      d.toLocaleDateString(
-        "en-PK",
-        {
-          weekday: "short"
-        }
-      );
-
-    let profit = 0;
-
-    sales.forEach(sale => {
-
-      const saleDate =
-        sale.saleDate ||
-        new Date(
-          Number(
-            sale.soldAt || 0
-          )
-        )
-          .toISOString()
-          .slice(0, 10);
-
-      if (saleDate === date) {
-
-        profit +=
-          Number(
-            sale.profit || 0
-          );
-      }
-    });
-
-    days.push({
-      label,
-      profit
-    });
-  }
-
-  const max =
-    Math.max(
-      ...days.map(
-        day => day.profit
-      ),
-      1
-    );
-
-  target.innerHTML =
-    days.map(day => {
-
-      const height =
-        Math.max(
-          3,
-          (
-            day.profit /
-            max
-          ) * 150
-        );
-
-      return `
-
-        <div class="chart-bar-wrap">
-
-          <div
-            class="chart-bar"
-            style="height:${height}px"
-            title="${money(day.profit)}">
           </div>
 
-          <span class="chart-label">
-            ${day.label}
-          </span>
+        `).join("")
 
+      : `
+        <div class="empty-state">
+          No sales yet.
         </div>
       `;
 
-    }).join("");
+
+  const topSalesmen =
+    getSalesmen()
+      .sort(
+        (a, b) =>
+          b.sales - a.sales
+      )
+      .slice(0, 5);
+
+
+  $("topSalesmen").innerHTML =
+
+    topSalesmen.length
+
+      ? topSalesmen.map(person => `
+
+          <div class="alert-item">
+
+            <div>
+              <strong>
+                ${escapeHTML(person.name)}
+              </strong>
+
+              <small>
+                ${person.deliveries} deliveries
+              </small>
+            </div>
+
+            <div>
+              <strong>
+                ${money(person.sales)}
+              </strong>
+
+              <small>
+                Sales
+              </small>
+            </div>
+
+          </div>
+
+        `).join("")
+
+      : `
+        <div class="empty-state">
+          No salesman data yet.
+        </div>
+      `;
+
 }
 
 
-/* =========================================================
-   CSV EXPORT
-========================================================= */
+/* =====================================================
+   DASHBOARD
+===================================================== */
 
-function downloadCSV(filename, rows) {
+function renderDashboard() {
 
-  if (!rows.length) {
+  const low =
+    inventory.filter(
+      x =>
+        getInventoryStatus(x) === "low"
+    );
+
+  const expired =
+    inventory.filter(
+      x =>
+        getInventoryStatus(x) === "expired"
+    );
+
+  const soon =
+    inventory.filter(
+      x =>
+        getInventoryStatus(x) === "soon"
+    );
+
+  const out =
+    inventory.filter(
+      x =>
+        getInventoryStatus(x) === "out"
+    );
+
+
+  $("totalStockItems").textContent =
+    inventory.length;
+
+  $("lowStockCount").textContent =
+    low.length;
+
+  $("expiredCount").textContent =
+    expired.length;
+
+  $("expirySoonCount").textContent =
+    soon.length;
+
+  $("outStockCount").textContent =
+    out.length;
+
+
+  const totalSales =
+    sales.reduce(
+      (sum, sale) =>
+        sum + Number(sale.total || 0),
+      0
+    );
+
+
+  const totalProfit =
+    sales.reduce(
+      (sum, sale) =>
+        sum + Number(sale.profit || 0),
+      0
+    );
+
+
+  const inventoryValue =
+    inventory.reduce(
+      (sum, item) =>
+        sum +
+        Number(item.quantity || 0) *
+        Number(item.buyPrice || 0),
+      0
+    );
+
+
+  $("totalSales").textContent =
+    money(totalSales);
+
+  $("totalProfit").textContent =
+    money(totalProfit);
+
+  $("inventoryValue").textContent =
+    money(inventoryValue);
+
+
+  $("todaySales").textContent =
+    money(calculateSales("today"));
+
+  $("todayProfit").textContent =
+    money(calculateProfit("today"));
+
+  $("monthSales").textContent =
+    money(calculateSales("month"));
+
+  $("yearSales").textContent =
+    money(calculateSales("year"));
+
+
+  $("dashboardAlerts").innerHTML =
+
+    low.length
+
+      ? low.slice(0, 5).map(item => `
+
+          <div class="alert-item">
+
+            <div>
+              <strong>
+                ${escapeHTML(item.name)}
+              </strong>
+
+              <small>
+                ${item.quantity} ${escapeHTML(item.unit || "")}
+                remaining
+              </small>
+            </div>
+
+            <span class="alert-status low">
+              LOW
+            </span>
+
+          </div>
+
+        `).join("")
+
+      : `
+        <div class="empty-state">
+          <div class="empty-icon">✅</div>
+          <strong>No low stock</strong>
+          <span>Everything looks good.</span>
+        </div>
+      `;
+
+
+  $("dashboardExpiry").innerHTML =
+
+    [...expired, ...soon]
+      .slice(0, 5)
+      .map(item => {
+
+        const status =
+          getInventoryStatus(item);
+
+        const days =
+          daysUntil(item.expiryDate);
+
+
+        return `
+
+          <div class="alert-item">
+
+            <div>
+              <strong>
+                ${escapeHTML(item.name)}
+              </strong>
+
+              <small>
+                Expiry: ${escapeHTML(item.expiryDate)}
+              </small>
+            </div>
+
+            <span class="alert-status ${status}">
+              ${
+                status === "expired"
+                  ? "EXPIRED"
+                  : `${days} DAYS`
+              }
+            </span>
+
+          </div>
+
+        `;
+
+      })
+      .join("") ||
+
+    `
+      <div class="empty-state">
+        <div class="empty-icon">✅</div>
+        <strong>No expiry alerts</strong>
+      </div>
+    `;
+
+
+  renderRecentSales();
+
+}
+
+
+function renderRecentSales() {
+
+  const list =
+    [...sales]
+      .sort(
+        (a, b) =>
+          Number(b.createdAt || 0) -
+          Number(a.createdAt || 0)
+      )
+      .slice(0, 5);
+
+
+  if (!list.length) {
+
+    $("recentSalesTable").innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">💰</div>
+        <strong>No sales yet</strong>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  $("recentSalesTable").innerHTML = `
+
+    <table class="data-table">
+
+      <thead>
+
+        <tr>
+          <th>Invoice</th>
+          <th>Medicine</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th>Total</th>
+        </tr>
+
+      </thead>
+
+      <tbody>
+
+        ${list.map(sale => `
+
+          <tr>
+
+            <td>
+              ${escapeHTML(sale.invoiceNumber)}
+            </td>
+
+            <td>
+              ${escapeHTML(sale.medicineName)}
+            </td>
+
+            <td>
+              ${escapeHTML(sale.customerName)}
+            </td>
+
+            <td>
+              ${escapeHTML(sale.deliveryDate)}
+            </td>
+
+            <td>
+              <strong>
+                ${money(sale.total)}
+              </strong>
+            </td>
+
+          </tr>
+
+        `).join("")}
+
+      </tbody>
+
+    </table>
+  `;
+
+}
+
+
+/* =====================================================
+   INVOICE
+===================================================== */
+
+/*
+   IMPORTANT:
+   Customer invoice mein:
+   - BUY PRICE nahi
+   - PROFIT nahi
+   - COST nahi
+*/
+
+function invoiceFromSale(sale) {
+
+  return {
+
+    invoiceNumber:
+      sale.invoiceNumber,
+
+    medicineName:
+      sale.medicineName,
+
+    batchNumber:
+      sale.batchNumber,
+
+    customerName:
+      sale.customerName,
+
+    customerPhone:
+      sale.customerPhone,
+
+    salesmanName:
+      sale.salesmanName,
+
+    salesmanPhone:
+      sale.salesmanPhone,
+
+    quantity:
+      sale.quantity,
+
+    unit:
+      sale.unit,
+
+    salePrice:
+      sale.salePrice,
+
+    subtotal:
+      sale.subtotal,
+
+    discount:
+      sale.discount,
+
+    total:
+      sale.total,
+
+    paidAmount:
+      sale.paidAmount,
+
+    remainingAmount:
+      sale.remainingAmount,
+
+    deliveryDate:
+      sale.deliveryDate
+
+  };
+
+}
+
+
+function renderInvoice(invoice) {
+
+  const business =
+    $("settingsBusiness").textContent ||
+    "Poultry Medicine Manager";
+
+
+  $("invoiceContent").innerHTML = `
+
+    <div class="invoice-header">
+
+      <h1>
+        ${escapeHTML(business)}
+      </h1>
+
+      <p>
+        Poultry Medicine Invoice
+      </p>
+
+    </div>
+
+
+    <div class="invoice-info">
+
+      <div>
+        <strong>Invoice #</strong>
+        ${escapeHTML(invoice.invoiceNumber)}
+      </div>
+
+      <div>
+        <strong>Date</strong>
+        ${escapeHTML(invoice.deliveryDate)}
+      </div>
+
+      <div>
+        <strong>Customer</strong>
+        ${escapeHTML(invoice.customerName)}
+      </div>
+
+      <div>
+        <strong>Customer Phone</strong>
+        ${escapeHTML(invoice.customerPhone || "-")}
+      </div>
+
+      <div>
+        <strong>Salesman</strong>
+        ${escapeHTML(invoice.salesmanName || "-")}
+      </div>
+
+      <div>
+        <strong>Salesman Phone</strong>
+        ${escapeHTML(invoice.salesmanPhone || "-")}
+      </div>
+
+    </div>
+
+
+    <table class="invoice-table">
+
+      <thead>
+
+        <tr>
+          <th>Medicine</th>
+          <th>Batch</th>
+          <th>Qty</th>
+          <th>Rate</th>
+          <th>Total</th>
+        </tr>
+
+      </thead>
+
+      <tbody>
+
+        <tr>
+
+          <td>
+            ${escapeHTML(invoice.medicineName)}
+          </td>
+
+          <td>
+            ${escapeHTML(invoice.batchNumber)}
+          </td>
+
+          <td>
+            ${invoice.quantity}
+            ${escapeHTML(invoice.unit || "")}
+          </td>
+
+          <td>
+            ${money(invoice.salePrice)}
+          </td>
+
+          <td>
+            ${money(invoice.subtotal)}
+          </td>
+
+        </tr>
+
+      </tbody>
+
+    </table>
+
+
+    <div class="invoice-total">
+
+      <div>
+        <span>Subtotal</span>
+        <strong>${money(invoice.subtotal)}</strong>
+      </div>
+
+      <div>
+        <span>Discount</span>
+        <strong>${money(invoice.discount)}</strong>
+      </div>
+
+      <div class="final">
+        <span>Total</span>
+        <strong>${money(invoice.total)}</strong>
+      </div>
+
+      <div>
+        <span>Paid</span>
+        <strong>${money(invoice.paidAmount)}</strong>
+      </div>
+
+      <div>
+        <span>Remaining</span>
+        <strong>${money(invoice.remainingAmount)}</strong>
+      </div>
+
+    </div>
+
+
+    <div class="invoice-footer">
+
+      Thank you for your business.
+
+    </div>
+
+  `;
+
+}
+
+
+$("printInvoiceBtn").addEventListener(
+  "click",
+  () => window.print()
+);
+
+
+/* =====================================================
+   EXPORT CSV
+===================================================== */
+
+$("exportBtn").addEventListener(
+  "click",
+  () => {
+
+    if (!sales.length) {
+
+      showToast(
+        "Export karne ke liye sales nahi hain.",
+        "warning"
+      );
+
+      return;
+
+    }
+
+
+    const headers = [
+      "Invoice",
+      "Date",
+      "Medicine",
+      "Batch",
+      "Customer",
+      "Customer Phone",
+      "Salesman",
+      "Salesman Phone",
+      "Quantity",
+      "Sale Price",
+      "Discount",
+      "Total",
+      "Profit",
+      "Payment Status"
+    ];
+
+
+    const rows =
+      sales.map(sale => [
+
+        sale.invoiceNumber,
+        sale.deliveryDate,
+        sale.medicineName,
+        sale.batchNumber,
+        sale.customerName,
+        sale.customerPhone,
+        sale.salesmanName,
+        sale.salesmanPhone,
+        sale.quantity,
+        sale.salePrice,
+        sale.discount,
+        sale.total,
+        sale.profit,
+        sale.paymentStatus
+
+      ]);
+
+
+    const csv = [
+
+      headers,
+
+      ...rows
+
+    ]
+      .map(row =>
+        row.map(value =>
+          `"${String(value ?? "")
+            .replaceAll('"', '""')}"`
+        ).join(",")
+      )
+      .join("\n");
+
+
+    const blob =
+      new Blob(
+        [csv],
+        { type: "text/csv;charset=utf-8;" }
+      );
+
+
+    const url =
+      URL.createObjectURL(blob);
+
+
+    const a =
+      document.createElement("a");
+
+    a.href = url;
+
+    a.download =
+      `poultry-sales-${todayString()}.csv`;
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+
+    showToast("CSV exported.");
+
+  }
+);
+
+
+/* =====================================================
+   LOGOUT
+===================================================== */
+
+async function logout() {
+
+  try {
+
+    await signOut(auth);
+
+    showToast("Logged out successfully.");
+
+  } catch (error) {
 
     showToast(
-      "No data to export.",
+      "Logout failed.",
       "error"
     );
 
-    return;
   }
 
-  const headers =
-    Object.keys(rows[0]);
-
-  const csv = [
-
-    headers.join(","),
-
-    ...rows.map(row =>
-      headers
-        .map(header => {
-
-          const value =
-            String(
-              row[header] ?? ""
-            )
-              .replaceAll('"', '""');
-
-          return `"${value}"`;
-        })
-        .join(",")
-    )
-
-  ].join("\n");
-
-  const blob =
-    new Blob(
-      [csv],
-      {
-        type:
-          "text/csv;charset=utf-8;"
-      }
-    );
-
-  const url =
-    URL.createObjectURL(blob);
-
-  const a =
-    document.createElement("a");
-
-  a.href = url;
-
-  a.download = filename;
-
-  document.body.appendChild(a);
-
-  a.click();
-
-  a.remove();
-
-  URL.revokeObjectURL(url);
 }
 
-$("exportSalesBtn").addEventListener(
+
+$("logoutBtn").addEventListener(
   "click",
-  () => {
-
-    const rows =
-      filteredSales().map(
-        sale => ({
-
-          Date:
-            sale.saleDate || "",
-
-          Delivery_Number:
-            sale.deliveryNumber || "",
-
-          Medicine:
-            sale.medicineName || "",
-
-          Batch:
-            sale.batchNo || "",
-
-          Quantity:
-            sale.quantity || 0,
-
-          Customer:
-            sale.customerName || "",
-
-          Customer_Number:
-            sale.customerPhone || "",
-
-          Salesman:
-            sale.salesmanName || "",
-
-          Salesman_Number:
-            sale.salesmanPhone || "",
-
-          Sale_Price:
-            sale.unitSalePrice || 0,
-
-          Total_Sale:
-            sale.totalSale || 0,
-
-          Profit:
-            sale.profit || 0,
-
-          Payment:
-            sale.paymentStatus || ""
-        })
-      );
-
-    downloadCSV(
-      "sales-history.csv",
-      rows
-    );
-  }
+  logout
 );
 
-$("exportDeliveriesBtn").addEventListener(
+$("dropdownLogout").addEventListener(
   "click",
-  () => {
+  logout
+);
 
-    const rows =
-      filteredDeliveries().map(
-        sale => ({
-
-          Date:
-            sale.saleDate || "",
-
-          Delivery_Number:
-            sale.deliveryNumber || "",
-
-          Salesman:
-            sale.salesmanName || "",
-
-          Salesman_Number:
-            sale.salesmanPhone || "",
-
-          Customer:
-            sale.customerName || "",
-
-          Customer_Number:
-            sale.customerPhone || "",
-
-          Customer_Address:
-            sale.customerAddress || "",
-
-          Medicine:
-            sale.medicineName || "",
-
-          Batch:
-            sale.batchNo || "",
-
-          Quantity:
-            sale.quantity || 0,
-
-          Total_Sale:
-            sale.totalSale || 0,
-
-          Profit:
-            sale.profit || 0,
-
-          Payment:
-            sale.paymentStatus || ""
-        })
-      );
-
-    downloadCSV(
-      "salesman-deliveries.csv",
-      rows
-    );
-  }
+$("settingsLogout").addEventListener(
+  "click",
+  logout
 );
 
 
-/* =========================================================
-   FILTER EVENTS
-========================================================= */
+/* =====================================================
+   MODAL CLOSE
+===================================================== */
 
-[
-  "inventorySearch",
-  "inventoryCategoryFilter",
-  "inventoryStatusFilter"
-].forEach(id => {
+document.querySelectorAll("[data-close]").forEach(button => {
 
-  $(id).addEventListener(
-    "input",
-    renderInventory
-  );
+  button.addEventListener("click", () => {
 
-  $(id).addEventListener(
-    "change",
-    renderInventory
-  );
-});
-
-[
-  "historySearch",
-  "historyFrom",
-  "historyTo",
-  "historyPayment"
-].forEach(id => {
-
-  $(id).addEventListener(
-    "input",
-    renderHistory
-  );
-
-  $(id).addEventListener(
-    "change",
-    renderHistory
-  );
-});
-
-[
-  "deliverySearch",
-  "deliveryFrom",
-  "deliveryTo"
-].forEach(id => {
-
-  $(id).addEventListener(
-    "input",
-    renderDeliveries
-  );
-
-  $(id).addEventListener(
-    "change",
-    renderDeliveries
-  );
-});
-
-
-/* =========================================================
-   QUICK SALE
-========================================================= */
-
-$("quickSaleBtn").addEventListener(
-  "click",
-  () => navigate("sale")
-);
-
-
-/* =========================================================
-   MODALS
-========================================================= */
-
-function closeModal(id) {
-
-  const modal =
-    $(id);
-
-  if (modal) {
-
-    modal.classList.add(
-      "hidden"
+    hideModal(
+      button.dataset.close
     );
-  }
-}
 
-document
-  .querySelectorAll(
-    "[data-close]"
-  )
-  .forEach(button => {
-
-    button.addEventListener(
-      "click",
-      () => {
-
-        closeModal(
-          button.dataset.close
-        );
-      }
-    );
   });
 
-document
-  .querySelectorAll(".modal")
-  .forEach(modal => {
+});
 
-    modal.addEventListener(
-      "click",
-      event => {
 
-        if (
-          event.target === modal
-        ) {
+document.querySelectorAll(".modal").forEach(modal => {
 
-          modal.classList.add(
-            "hidden"
-          );
-        }
-      }
-    );
+  modal.addEventListener("click", e => {
+
+    if (e.target === modal) {
+      modal.classList.add("hidden");
+    }
+
   });
 
+});
 
-/* =========================================================
-   RENDER EVERYTHING
-========================================================= */
 
-function renderEverything() {
+/* =====================================================
+   GLOBAL RENDER
+===================================================== */
 
-  if (!currentUser) return;
+function renderAll() {
+
+  renderCategories();
 
   renderDashboard();
 
   renderInventory();
 
-  renderHistory();
+  renderSales();
 
   renderCustomers();
 
-  renderDeliveries();
+  renderSalesmen();
 
   renderReports();
 
-  populateSaleInventory();
-
-  calculateSalePreview();
 }
 
 
-/* =========================================================
-   INITIAL SALE DATE
-========================================================= */
+/* =====================================================
+   START
+===================================================== */
 
-$("saleDate").value =
-  todayString();
+console.log(
+  "Poultry Medicine Manager loaded successfully."
+);
