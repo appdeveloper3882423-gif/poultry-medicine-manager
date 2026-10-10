@@ -3,14 +3,18 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail, updateProfile, signOut, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, runTransaction, query, orderBy, where } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-const firebaseConfig = {
-  apiKey: "AIzaSyCkyj91iDkxfyFq3ErGucMykxB6h0trplM",
-  authDomain: "poultry-medicine-manager-93b79.firebaseapp.com",
-  projectId: "poultry-medicine-manager-93b79",
-  storageBucket: "poultry-medicine-manager-93b79.firebasestorage.app",
-  messagingSenderId: "623127969077",
-  appId: "1:623127969077:web:e7e4b8a2e25fc4e249607c"
+
+const FIREBASE_CONFIG = {
+  // IMPORTANT: In Firebase Console -> Project settings -> General -> Your apps,
+  // copy the Web App config for poultry-medicine-manager-93b79 and paste exact values here.
+  apiKey: 'AIzaSyCkyj91iDxfyFq3ErGucMykxB6h0trplM',
+  authDomain: 'poultry-medicine-manager-93b79.firebaseapp.com',
+  projectId: 'poultry-medicine-manager-93b79',
+  storageBucket: 'poultry-medicine-manager-93b79.firebasestorage.app',
+  messagingSenderId: '623127969077',
+  appId: '1:623127969077:web:e7e4b8a2e25fc4e249607c'
 };
+
 const configReady = FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('PASTE_') && FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.projectId !== 'YOUR_PROJECT_ID' && FIREBASE_CONFIG.appId && !FIREBASE_CONFIG.appId.includes('PASTE_');
 let auth = null, db = null, currentUser = null, business = { name: 'Poultry Medicine Manager', type: 'general', currency: 'PKR', timezone: 'Asia/Karachi' };
 let unsubs = [], authMode = 'login', activePage = 'dashboard', searchText = '', toastTimer = null, chartRange = 30, copilotMessages = [], copilotBusy = false;
@@ -23,8 +27,9 @@ const num = value => Number(value || 0);
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const money = value => { try { return new Intl.NumberFormat('en-PK',{style:'currency',currency:business.currency || 'PKR',maximumFractionDigits:2}).format(num(value)); } catch { return `${business.currency || 'PKR'} ${num(value).toFixed(2)}`; } };
 const uid = () => currentUser?.uid;
-const col = name => collection(db, 'businesses', uid(), name);
-const docRef = (name, id) => doc(db, 'businesses', uid(), name, id);
+const storedCollection = name => name === 'products' ? 'inventory' : name; // keep the existing users/{uid}/inventory records
+const col = name => collection(db, 'users', uid(), storedCollection(name));
+const docRef = (name, id) => doc(db, 'users', uid(), storedCollection(name), id);
 const sum = (items, field) => items.reduce((n, x) => n + num(x[field]), 0);
 const dateOf = x => { if (x?.date) return String(x.date).slice(0,10); const c=x?.createdAt; if (typeof c==='string') return c.slice(0,10); if (c?.toDate) return c.toDate().toISOString().slice(0,10); if (c?.seconds) return new Date(c.seconds*1000).toISOString().slice(0,10); return ''; };
 const invoiceNo = () => `PMM-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
@@ -48,14 +53,14 @@ function authModeSet(mode) {
 function requireConfig() { if (!configReady || !auth || !db) throw new Error('Firebase config missing. Open app.js and replace the six FIREBASE_CONFIG values with your Firebase Web App config.'); }
 
 async function ensureBusiness(user, proposed = {}) {
-  requireConfig(); const ref = doc(db, 'businesses', user.uid); const snap = await getDoc(ref);
+  requireConfig(); const ref = doc(db, 'users', user.uid); const snap = await getDoc(ref);
   if (!snap.exists()) {
     const profile = { name: proposed.name || (user.displayName ? `${user.displayName}'s Business` : 'Poultry Medicine Manager'), type: proposed.type || 'general', currency: 'PKR', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Karachi', ownerUid: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
     await setDoc(ref, profile);
   }
 }
 async function loadBusiness() {
-  const snap = await getDoc(doc(db, 'businesses', uid()));
+  const snap = await getDoc(doc(db, 'users', uid()));
   if (snap.exists()) business = { ...business, ...snap.data() };
   updateBusinessChrome();
 }
@@ -64,15 +69,48 @@ function updateBusinessChrome() {
   $('sideBusinessType').textContent = ({ general:'Retail business', medical:'Medical store', wholesale:'Wholesale business' })[business.type] || 'Business workspace';
 }
 function stopWatchers() { unsubs.forEach(fn => fn()); unsubs = []; }
+function normalizeLegacyRecord(name, raw, id) {
+  const x = { id, ...raw };
+  if (name === 'products') {
+    x.name = x.name || x.medicineName || x.productName || '';
+    x.stock = x.stock ?? x.quantity ?? x.currentStock ?? 0;
+    x.costPrice = x.costPrice ?? x.purchasePrice ?? x.buyPrice ?? 0;
+    x.salePrice = x.salePrice ?? x.defaultSalePrice ?? x.sellingPrice ?? 0;
+    x.medicineType = x.medicineType || x.typeOfMedicine || x.category || 'Other';
+    x.unit = x.unit || x.stockUnit || 'piece';
+    x.reorderLevel = x.reorderLevel ?? x.lowStockThreshold ?? 5;
+    x.expiryDate = x.expiryDate || x.expiry || '';
+    x.batch = x.batch || x.batchNo || x.batchNumber || '';
+  }
+  if (name === 'sales') {
+    x.invoiceNo = x.invoiceNo || x.deliveryNumber || x.saleNumber || `SALE-${id.slice(0,6)}`;
+    x.date = x.date || x.saleDate || x.createdAt || '';
+    x.total = x.total ?? x.totalSale ?? x.totalAmount ?? x.grossAmount ?? 0;
+    x.paid = x.paid ?? (String(x.paymentStatus || '').toLowerCase() === 'paid' ? x.total : 0);
+    if (!Array.isArray(x.items)) x.items = [{ productId:x.inventoryId || '', name:x.medicineName || x.productName || x.itemName || 'Medicine', quantity:num(x.quantity), unitPrice:num(x.unitSalePrice ?? x.salePrice), costPrice:num(x.unitCost ?? x.purchasePrice) }];
+    x.profit = x.profit ?? x.profitAmount ?? x.totalProfit ?? 0;
+    x.customerPhone = x.customerPhone || x.customerContact || x.phone || '';
+  }
+  return x;
+}
 function startWatchers() {
   stopWatchers(); const names = Object.keys(data);
   names.forEach(name => {
-    const q = query(col(name), orderBy('createdAt', 'desc'));
+    const q = col(name); // include legacy records that do not have createdAt yet
     const unsub = onSnapshot(q, snap => {
-      data[name] = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      data[name] = snap.docs.map(d => normalizeLegacyRecord(name, d.data(), d.id));
       $('syncStatus').textContent = 'Synced just now';
       renderCurrent(); updateAlertChrome();
-    }, err => { console.error(err); toast(`Could not load ${name}: ${err.message}`, true); });
+    }, err => {
+      // Legacy documents may not contain createdAt; fall back to a full collection read.
+      if (err.code === 'failed-precondition' || err.code === 'invalid-argument') {
+        const fallback = onSnapshot(col(name), fallbackSnap => {
+          data[name] = fallbackSnap.docs.map(d => normalizeLegacyRecord(name, d.data(), d.id));
+          $('syncStatus').textContent = 'Synced'; renderCurrent(); updateAlertChrome();
+        }, fallbackErr => { console.error(fallbackErr); toast(`Could not load ${name}: ${fallbackErr.message}`, true); });
+        unsubs.push(fallback);
+      } else { console.error(err); toast(`Could not load ${name}: ${err.message}`, true); }
+    });
     unsubs.push(unsub);
   });
 }
@@ -297,9 +335,9 @@ async function saveSale() {
   const sale={invoiceNo:invoiceNo(),customerId,customerName,customerPhone,paymentMethod,note:$('saleNote').value.trim(),total,paid:paidFinal,profit:items.reduce((n,i)=>n+i.quantity*(i.unitPrice-i.costPrice),0),items,date:today(),createdAt:new Date().toISOString()};
   await runTransaction(db,async tx=>{
     const productIds=[...requiredByProduct.keys()]; const refs=productIds.map(id=>docRef('products',id)); const snaps=[]; for(const r of refs) snaps.push(await tx.get(r));
-    snaps.forEach((snap,i)=>{const id=productIds[i], product=data.products.find(p=>p.id===id);if(!snap.exists())throw new Error(`Product not found: ${product?.name||id}`);const stock=num(snap.data().stock), needed=requiredByProduct.get(id);if(stock<needed)throw new Error(`Insufficient stock for ${product?.name||'product'}. Available: ${stock}, required: ${needed}.`);});
+    snaps.forEach((snap,i)=>{const id=productIds[i], product=data.products.find(p=>p.id===id);if(!snap.exists())throw new Error(`Product not found: ${product?.name||id}`);const stock=num(snap.data().stock ?? snap.data().quantity ?? snap.data().currentStock), needed=requiredByProduct.get(id);if(stock<needed)throw new Error(`Insufficient stock for ${product?.name||'product'}. Available: ${stock}, required: ${needed}.`);});
     const saleRef=doc(col('sales')); tx.set(saleRef,{...sale,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
-    snaps.forEach((snap,i)=>tx.update(refs[i],{stock:num(snap.data().stock)-requiredByProduct.get(productIds[i]),updatedAt:serverTimestamp()}));
+    snaps.forEach((snap,i)=>{const next=num(snap.data().stock ?? snap.data().quantity ?? snap.data().currentStock)-requiredByProduct.get(productIds[i]);const patch={stock:next,updatedAt:serverTimestamp()};if('quantity' in snap.data())patch.quantity=next;if('currentStock' in snap.data())patch.currentStock=next;tx.update(refs[i],patch);});
     if(paidFinal<total && customerName!=='Walk-in customer') { const ledgerRef=doc(col('ledger')); tx.set(ledgerRef,{type:'customer_due',customerName,saleId:saleRef.id,amount:total-paidFinal,note:`Due from invoice ${sale.invoiceNo}`,createdAt:serverTimestamp(),updatedAt:serverTimestamp()}); }
   });
   toast(`Sale ${sale.invoiceNo} saved; stock updated.`); closeDialog();
@@ -310,7 +348,7 @@ async function savePurchase(form) {
   if(!product)throw new Error('Choose a product first.'); if(quantity<=0||unitPrice<0||paid<0||paid>total)throw new Error('Enter a valid quantity, cost and payment (paid amount cannot exceed purchase total).');
   const paymentStatus=paid>=total?'Paid':paid>0?'Partial':'Unpaid';
   const selectedSupplier=data.suppliers.find(x=>x.id===v.supplierId); const purchase={reference:v.reference||`PUR-${Date.now().toString().slice(-6)}`,supplierId:selectedSupplier?.id||'',supplierName:selectedSupplier?.name||'Supplier',supplierPhone:v.supplierPhone||selectedSupplier?.phone||'',date:v.date||today(),total,paid,paymentStatus,note:v.note||'',items:[{productId:product.id,name:product.name,quantity,unitPrice,costPrice:unitPrice}]};
-  await runTransaction(db,async tx=>{const pr=docRef('products',product.id),snap=await tx.get(pr);if(!snap.exists())throw new Error('Product no longer exists.');const purchaseRef=doc(col('purchases'));tx.set(purchaseRef,{...purchase,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});tx.update(pr,{stock:num(snap.data().stock)+quantity,costPrice:unitPrice,updatedAt:serverTimestamp()});});
+  await runTransaction(db,async tx=>{const pr=docRef('products',product.id),snap=await tx.get(pr);if(!snap.exists())throw new Error('Product no longer exists.');const purchaseRef=doc(col('purchases'));tx.set(purchaseRef,{...purchase,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});const next=num(snap.data().stock ?? snap.data().quantity ?? snap.data().currentStock)+quantity;const patch={stock:next,costPrice:unitPrice,updatedAt:serverTimestamp()};if('quantity' in snap.data())patch.quantity=next;if('currentStock' in snap.data())patch.currentStock=next;tx.update(pr,patch);});
   toast('Purchase saved and inventory updated.');closeDialog();
 }
 async function saveReturn() {
