@@ -3,17 +3,14 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail, updateProfile, signOut, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, runTransaction, query, orderBy, where } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-
-
 const firebaseConfig = {
   apiKey: "AIzaSyCkyj91iDkxfyFq3ErGucMykxB6h0trplM",
   authDomain: "poultry-medicine-manager-93b79.firebaseapp.com",
   projectId: "poultry-medicine-manager-93b79",
   storageBucket: "poultry-medicine-manager-93b79.firebasestorage.app",
   messagingSenderId: "623127969077",
-  appId: "1:623127969077:web:e7e4e4b8a2e25fc4e249607c"
+  appId: "1:623127969077:web:e7e4b8a2e25fc4e249607c"
 };
-
 const configReady = FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('PASTE_') && FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.projectId !== 'YOUR_PROJECT_ID' && FIREBASE_CONFIG.appId && !FIREBASE_CONFIG.appId.includes('PASTE_');
 let auth = null, db = null, currentUser = null, business = { name: 'Poultry Medicine Manager', type: 'general', currency: 'PKR', timezone: 'Asia/Karachi' };
 let unsubs = [], authMode = 'login', activePage = 'dashboard', searchText = '', toastTimer = null, chartRange = 30, copilotMessages = [], copilotBusy = false;
