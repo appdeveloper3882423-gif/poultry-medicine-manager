@@ -1,35 +1,9 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+/* Poultry Medicine Manager — browser-based Firebase business manager.
+   Setup: paste your Firebase Web App config into FIREBASE_CONFIG below. */
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail, updateProfile, signOut, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, runTransaction, query, orderBy, where } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  updateProfile,
-  setPersistence,
-  browserLocalPersistence,
-  GoogleAuthProvider,
-  signInWithPopup
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-
-import {
-  getFirestore,
-  collection,
-  doc,
-  setDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  getDoc,
-  onSnapshot,
-  runTransaction
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-
-
-/* =====================================================
-   FIREBASE
-===================================================== */
 
 const firebaseConfig = {
   apiKey: "AIzaSyCkyj91iDkxfyFq3ErGucMykxB6h0trplM",
@@ -40,3228 +14,427 @@ const firebaseConfig = {
   appId: "1:623127969077:web:e7e4e4b8a2e25fc4e249607c"
 };
 
-const firebaseApp = initializeApp(firebaseConfig);
-
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
-
-const googleProvider = new GoogleAuthProvider();
-
-googleProvider.setCustomParameters({
-  prompt: "select_account"
-});
-
-await setPersistence(auth, browserLocalPersistence);
-
-
-/* =====================================================
-   STATE
-===================================================== */
-
-let currentUser = null;
-let inventory = [];
-let sales = [];
-let unsubInventory = null;
-let unsubSales = null;
-
-let currentInvoice = null;
-
-
-/* =====================================================
-   DOM HELPERS
-===================================================== */
-
+const configReady = FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('PASTE_') && FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.projectId !== 'YOUR_PROJECT_ID' && FIREBASE_CONFIG.appId && !FIREBASE_CONFIG.appId.includes('PASTE_');
+let auth = null, db = null, currentUser = null, business = { name: 'Poultry Medicine Manager', type: 'general', currency: 'PKR', timezone: 'Asia/Karachi' };
+let unsubs = [], authMode = 'login', activePage = 'dashboard', searchText = '', toastTimer = null, chartRange = 30, copilotMessages = [], copilotBusy = false;
+const rangeLabels = {7:'1W',30:'1M',90:'3M',180:'6M',365:'1Y'};
+const data = { products: [], sales: [], purchases: [], customers: [], suppliers: [], expenses: [], deliveries: [], returns: [], ledger: [] };
+const pageNames = { dashboard: 'Dashboard', inventory: 'Medicine Stock', sales: 'Sales & POS', purchases: 'Purchases', ledger: 'Ledger', customers: 'Customers & Khata', suppliers: 'Suppliers', expenses: 'Expenses', deliveries: 'Deliveries', returns: 'Returns', reports: 'Reports', settings: 'Settings', copilot: 'AI Business Copilot' };
 const $ = id => document.getElementById(id);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const num = value => Number(value || 0);
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const money = value => { try { return new Intl.NumberFormat('en-PK',{style:'currency',currency:business.currency || 'PKR',maximumFractionDigits:2}).format(num(value)); } catch { return `${business.currency || 'PKR'} ${num(value).toFixed(2)}`; } };
+const uid = () => currentUser?.uid;
+const col = name => collection(db, 'businesses', uid(), name);
+const docRef = (name, id) => doc(db, 'businesses', uid(), name, id);
+const sum = (items, field) => items.reduce((n, x) => n + num(x[field]), 0);
+const dateOf = x => { if (x?.date) return String(x.date).slice(0,10); const c=x?.createdAt; if (typeof c==='string') return c.slice(0,10); if (c?.toDate) return c.toDate().toISOString().slice(0,10); if (c?.seconds) return new Date(c.seconds*1000).toISOString().slice(0,10); return ''; };
+const invoiceNo = () => `PMM-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
 
-const money = value => {
-  return "Rs. " + Number(value || 0).toLocaleString("en-PK", {
-    maximumFractionDigits: 2
+function toast(message, bad = false) {
+  const el = $('toast'); el.textContent = message; el.style.background = bad ? '#a72e3d' : '#142540'; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+function setAuthError(message = '') { $('authError').textContent = message; }
+function setAuthBusy(busy) { $('authSubmit').disabled = busy; $('googleBtn').disabled = busy; $('authSubmit').textContent = busy ? (authMode === 'login' ? 'Logging in…' : 'Creating…') : (authMode === 'login' ? 'Sign in' : 'Create account'); }
+function showAuth() { $('authView').classList.remove('hidden'); $('appView').classList.add('hidden'); }
+function showApp() { $('authView').classList.add('hidden'); $('appView').classList.remove('hidden'); }
+function authModeSet(mode) {
+  authMode = mode; const signup = mode === 'signup'; $('signupFields').classList.toggle('hidden', !signup);
+  $('authEyebrow').textContent = signup ? 'START YOUR BUSINESS WORKSPACE' : 'YOUR WORKSPACE AWAITS';
+  $('authTitle').textContent = signup ? 'Create your workspace' : 'Welcome back';
+  $('authSubtitle').textContent = signup ? 'Create a free account to get started.' : 'Sign in to continue to your business.';
+  $('authSubmit').textContent = signup ? 'Create account' : 'Sign in'; $('forgotBtn').classList.toggle('hidden', signup);
+  $('switchText').textContent = signup ? 'Already have an account?' : 'New to Poultry Medicine Manager?'; $('switchMode').textContent = signup ? 'Sign in' : 'Create account'; $('password').autocomplete = signup ? 'new-password' : 'current-password'; setAuthError('');
+}
+function requireConfig() { if (!configReady || !auth || !db) throw new Error('Firebase config missing. Open app.js and replace the six FIREBASE_CONFIG values with your Firebase Web App config.'); }
+
+async function ensureBusiness(user, proposed = {}) {
+  requireConfig(); const ref = doc(db, 'businesses', user.uid); const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    const profile = { name: proposed.name || (user.displayName ? `${user.displayName}'s Business` : 'Poultry Medicine Manager'), type: proposed.type || 'general', currency: 'PKR', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Karachi', ownerUid: user.uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    await setDoc(ref, profile);
+  }
+}
+async function loadBusiness() {
+  const snap = await getDoc(doc(db, 'businesses', uid()));
+  if (snap.exists()) business = { ...business, ...snap.data() };
+  updateBusinessChrome();
+}
+function updateBusinessChrome() {
+  $('sideBusinessName').textContent = business.name || 'Poultry Medicine Manager';
+  $('sideBusinessType').textContent = ({ general:'Retail business', medical:'Medical store', wholesale:'Wholesale business' })[business.type] || 'Business workspace';
+}
+function stopWatchers() { unsubs.forEach(fn => fn()); unsubs = []; }
+function startWatchers() {
+  stopWatchers(); const names = Object.keys(data);
+  names.forEach(name => {
+    const q = query(col(name), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, snap => {
+      data[name] = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      $('syncStatus').textContent = 'Synced just now';
+      renderCurrent(); updateAlertChrome();
+    }, err => { console.error(err); toast(`Could not load ${name}: ${err.message}`, true); });
+    unsubs.push(unsub);
   });
-};
-
-const todayString = () => {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
-};
-
-const escapeHTML = value => {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-};
-
-const showToast = (message, type = "success") => {
-
-  const toast = document.createElement("div");
-
-  toast.className = `toast ${type}`;
-
-  toast.textContent = message;
-
-  $("toastContainer").appendChild(toast);
-
-  setTimeout(() => {
-    toast.remove();
-  }, 3500);
-};
-
-
-const showModal = id => {
-  $(id).classList.remove("hidden");
-};
-
-const hideModal = id => {
-  $(id).classList.add("hidden");
-};
-
-
-/* =====================================================
-   AUTH
-===================================================== */
-
-function setAuthLoading(button, loading, normalText) {
-
-  if (!button) return;
-
-  button.disabled = loading;
-
-  button.textContent = loading
-    ? normalText + "..."
-    : normalText;
 }
+async function add(name, payload) { requireConfig(); return addDoc(col(name), { ...payload, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }); }
+async function update(name, id, payload) { return updateDoc(docRef(name,id), { ...payload, updatedAt: serverTimestamp() }); }
+async function remove(name,id) { return deleteDoc(docRef(name,id)); }
 
-
-/* Login */
-
-$("loginForm").addEventListener("submit", async e => {
-
-  e.preventDefault();
-
-  const btn = $("loginBtn");
-
-  const email = $("loginEmail").value.trim();
-  const password = $("loginPassword").value;
-
-  try {
-
-    setAuthLoading(btn, true, "Logging in");
-
-    await signInWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
-
-    showToast("Login successful.");
-
-  } catch (error) {
-
-    showToast(firebaseError(error), "error");
-
-  } finally {
-
-    setAuthLoading(btn, false, "Logging in");
-
-  }
-
-});
-
-
-/* Register */
-
-$("registerForm").addEventListener("submit", async e => {
-
-  e.preventDefault();
-
-  const btn = $("registerBtn");
-
-  const name = $("registerName").value.trim();
-  const business = $("registerBusiness").value.trim();
-  const email = $("registerEmail").value.trim();
-  const password = $("registerPassword").value;
-
-  try {
-
-    setAuthLoading(btn, true, "Creating");
-
-    const result = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
-
-    await updateProfile(result.user, {
-      displayName: name
-    });
-
-    await setDoc(
-      doc(db, "users", result.user.uid),
-      {
-        name,
-        businessName: business,
-        email,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      },
-      { merge: true }
-    );
-
-    showToast("Account created successfully.");
-
-  } catch (error) {
-
-    showToast(firebaseError(error), "error");
-
-  } finally {
-
-    setAuthLoading(btn, false, "Create Account");
-
-  }
-
-});
-
-
-/* Google */
-
-async function googleLogin() {
-
-  try {
-
-    await signInWithPopup(
-      auth,
-      googleProvider
-    );
-
-    showToast("Google login successful.");
-
-  } catch (error) {
-
-    showToast(firebaseError(error), "error");
-
-  }
-
+function updateAlertChrome() {
+  const low = data.products.filter(p => num(p.stock) <= num(p.reorderLevel));
+  const expiredOrSoon = data.products.filter(p => p.expiryDate && (new Date(`${p.expiryDate}T23:59:59`).getTime() - Date.now()) <= 30*86400000);
+  $('lowStockBadge').textContent = low.length; $('lowStockBadge').classList.toggle('hidden', !low.length);
+  $('alertDot').classList.toggle('hidden', !(low.length || expiredOrSoon.length));
+  const alerts = [];
+  low.slice(0,5).forEach(p => alerts.push(`<div class="alert-row"><span class="alert-symbol red">!</span><div><b>${esc(p.name)} — low stock</b><small>${num(p.stock)} ${esc(p.unit || 'units')} left; alert at ${num(p.reorderLevel)}.</small></div></div>`));
+  expiredOrSoon.slice(0,5).forEach(p => { const days = Math.ceil((new Date(`${p.expiryDate}T23:59:59`).getTime()-Date.now())/86400000); alerts.push(`<div class="alert-row"><span class="alert-symbol ${days < 0 ? 'red' : ''}">⌛</span><div><b>${esc(p.name)} — ${days < 0 ? 'expiry date passed' : 'expiry approaching'}</b><small>Expiry date: ${esc(p.expiryDate)}${days >= 0 ? ` (${days} days)` : ''}.</small></div></div>`); });
+  $('alertStrip').innerHTML = alerts.length ? `<div class="notice warning">Stock and expiry alerts are based on the dates and quantities entered in your workspace.</div>` : '';
+  $('alertStrip').classList.toggle('hidden', !alerts.length);
 }
-
-$("googleLoginBtn").addEventListener("click", googleLogin);
-
-$("googleRegisterBtn").addEventListener("click", googleLogin);
-
-
-/* Auth switch */
-
-$("showRegisterBtn").addEventListener("click", () => {
-
-  $("loginBox").classList.add("hidden");
-  $("registerBox").classList.remove("hidden");
-
-});
-
-$("showLoginBtn").addEventListener("click", () => {
-
-  $("registerBox").classList.add("hidden");
-  $("loginBox").classList.remove("hidden");
-
-});
-
-
-/* Password visibility */
-
-document.querySelectorAll(".password-toggle").forEach(btn => {
-
-  btn.addEventListener("click", () => {
-
-    const target = $(btn.dataset.target);
-
-    target.type =
-      target.type === "password"
-        ? "text"
-        : "password";
-
-  });
-
-});
-
-
-/* Firebase error messages */
-
-function firebaseError(error) {
-
-  const code = error?.code || "";
-
-  const messages = {
-
-    "auth/api-key-not-valid":
-      "Firebase API key invalid hai. Firebase Console se current Web App config check karein.",
-
-    "auth/invalid-api-key":
-      "Firebase API key invalid hai.",
-
-    "auth/email-already-in-use":
-      "Ye email already registered hai.",
-
-    "auth/invalid-email":
-      "Email address invalid hai.",
-
-    "auth/weak-password":
-      "Password kam az kam 6 characters ka hona chahiye.",
-
-    "auth/invalid-credential":
-      "Email ya password incorrect hai.",
-
-    "auth/user-not-found":
-      "Is email ka account nahi mila.",
-
-    "auth/wrong-password":
-      "Password incorrect hai.",
-
-    "auth/operation-not-allowed":
-      "Firebase Authentication mein ye login method enable nahi hai.",
-
-    "auth/unauthorized-domain":
-      "Ye website domain Firebase Authentication ke Authorized Domains mein add nahi hai.",
-
-    "auth/popup-blocked":
-      "Google login popup browser ne block kar diya.",
-
-    "auth/popup-closed-by-user":
-      "Google login popup close kar diya gaya.",
-
-    "auth/network-request-failed":
-      "Internet connection check karein."
-
-  };
-
-  return messages[code] ||
-    error?.message ||
-    "Something went wrong.";
-}
-
-
-/* =====================================================
-   AUTH STATE
-===================================================== */
-
-onAuthStateChanged(auth, async user => {
-
-  currentUser = user;
-
-  if (!user) {
-
-    $("authScreen").classList.remove("hidden");
-    $("appScreen").classList.add("hidden");
-
-    cleanupListeners();
-
-    return;
-  }
-
-  $("authScreen").classList.add("hidden");
-  $("appScreen").classList.remove("hidden");
-
-  await ensureUserProfile(user);
-
-  setupUserUI(user);
-
-  startRealtimeData();
-
-});
-
-
-/* =====================================================
-   USER PROFILE
-===================================================== */
-
-async function ensureUserProfile(user) {
-
-  const userRef = doc(db, "users", user.uid);
-
-  const snapshot = await getDoc(userRef);
-
-  if (!snapshot.exists()) {
-
-    await setDoc(userRef, {
-
-      name: user.displayName || "User",
-
-      businessName:
-        user.displayName
-          ? `${user.displayName}'s Business`
-          : "Poultry Medicine Business",
-
-      email: user.email || "",
-
-      photoURL: user.photoURL || "",
-
-      createdAt: Date.now(),
-
-      updatedAt: Date.now()
-
-    });
-
-  } else {
-
-    await setDoc(
-      userRef,
-      {
-        email: user.email || "",
-        name: user.displayName || snapshot.data().name || "User",
-        photoURL: user.photoURL || "",
-        updatedAt: Date.now()
-      },
-      { merge: true }
-    );
-
-  }
-
-}
-
-
-function setupUserUI(user) {
-
-  const name =
-    user.displayName ||
-    user.email?.split("@")[0] ||
-    "User";
-
-  const email =
-    user.email ||
-    "";
-
-  const initial =
-    name.charAt(0).toUpperCase();
-
-  $("profileName").textContent = name;
-  $("profileEmail").textContent = email;
-
-  $("dropdownName").textContent = name;
-  $("dropdownEmail").textContent = email;
-
-  $("welcomeName").textContent = name;
-
-  $("settingsName").textContent = name;
-  $("settingsEmail").textContent = email;
-
-  $("profileAvatar").textContent = initial;
-  $("settingsAvatar").textContent = initial;
-
-  $("settingsBusiness").textContent =
-    "Poultry Medicine Business";
-
-}
-
-
-/* =====================================================
-   REALTIME DATA
-===================================================== */
-
-function startRealtimeData() {
-
-  cleanupListeners();
-
-  const inventoryRef =
-    collection(
-      db,
-      "users",
-      currentUser.uid,
-      "inventory"
-    );
-
-  const salesRef =
-    collection(
-      db,
-      "users",
-      currentUser.uid,
-      "sales"
-    );
-
-
-  unsubInventory = onSnapshot(
-    inventoryRef,
-    snapshot => {
-
-      inventory =
-        snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-      renderAll();
-
-    },
-    error => {
-
-      console.error(error);
-
-      showToast(
-        "Inventory data load nahi ho raha.",
-        "error"
-      );
-
-    }
-  );
-
-
-  unsubSales = onSnapshot(
-    salesRef,
-    snapshot => {
-
-      sales =
-        snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-      renderAll();
-
-    },
-    error => {
-
-      console.error(error);
-
-      showToast(
-        "Sales data load nahi ho raha.",
-        "error"
-      );
-
-    }
-  );
-
-}
-
-
-function cleanupListeners() {
-
-  if (unsubInventory) {
-    unsubInventory();
-    unsubInventory = null;
-  }
-
-  if (unsubSales) {
-    unsubSales();
-    unsubSales = null;
-  }
-
-}
-
-
-/* =====================================================
-   NAVIGATION
-===================================================== */
-
 function navigate(page) {
-
-  document.querySelectorAll(".page").forEach(section => {
-    section.classList.remove("active-page");
-  });
-
-  const target = $("page-" + page);
-
-  if (target) {
-    target.classList.add("active-page");
-  }
-
-  document.querySelectorAll(".nav-item").forEach(item => {
-
-    item.classList.toggle(
-      "active",
-      item.dataset.page === page
-    );
-
-  });
-
-  const titles = {
-
-    dashboard: [
-      "Dashboard",
-      "Overview of your medicine business"
-    ],
-
-    inventory: [
-      "Inventory",
-      "Manage medicines and batches"
-    ],
-
-    sales: [
-      "Sales",
-      "Sales history, invoices and profit"
-    ],
-
-    customers: [
-      "Customers",
-      "Customer purchase history"
-    ],
-
-    salesmen: [
-      "Salesmen & Delivery",
-      "Track delivery performance"
-    ],
-
-    reports: [
-      "Reports",
-      "Business performance and profit"
-    ],
-
-    settings: [
-      "Settings",
-      "Manage your account"
-    ]
-
-  };
-
-  if (titles[page]) {
-
-    $("pageTitle").textContent =
-      titles[page][0];
-
-    $("pageSubtitle").textContent =
-      titles[page][1];
-
-  }
-
-  $("sidebar").classList.remove("open");
-
-  $("profileDropdown").classList.add("hidden");
-
+  activePage = page; document.querySelectorAll('.nav-link[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+  $('pageTitle').textContent = pageNames[page] || 'Dashboard'; $('breadcrumbTitle').textContent = pageNames[page] || 'Dashboard';
+  $('sidebar').classList.remove('open'); $('scrim').classList.add('hidden'); renderCurrent();
 }
-
-
-/* Navigation clicks */
-
-document.querySelectorAll("[data-page]").forEach(element => {
-
-  element.addEventListener("click", () => {
-
-    const page = element.dataset.page;
-
-    if (page) {
-      navigate(page);
-    }
-
-  });
-
-});
-
-
-$("mobileMenuBtn").addEventListener("click", () => {
-
-  $("sidebar").classList.toggle("open");
-
-});
-
-
-$("profileBtn").addEventListener("click", () => {
-
-  $("profileDropdown").classList.toggle("hidden");
-
-});
-
-
-/* =====================================================
-   DASHBOARD FILTER CARDS
-===================================================== */
-
-document.querySelectorAll("[data-dashboard-filter]").forEach(element => {
-
-  element.addEventListener("click", () => {
-
-    const filter = element.dataset.dashboardFilter;
-
-    if (filter === "sales") {
-
-      navigate("sales");
-
-      $("salesPeriod").value = "all";
-
-      renderSales();
-
-      return;
-
-    }
-
-    navigate("inventory");
-
-    $("inventoryFilter").value =
-      filter === "all" ? "all" : filter;
-
-    renderInventory();
-
-  });
-
-});
-
-
-/* =====================================================
-   STOCK MODAL
-===================================================== */
-
-function openStockModal(id = null) {
-
-  $("stockForm").reset();
-
-  $("stockId").value = "";
-
-  $("stockModalTitle").textContent =
-    id ? "Edit Medicine" : "Add Medicine";
-
-  $("purchaseDate").value =
-    todayString();
-
-  $("minStock").value = 20;
-
-  if (id) {
-
-    const item =
-      inventory.find(x => x.id === id);
-
-    if (!item) return;
-
-    $("stockId").value = item.id;
-
-    $("medicineName").value = item.name || "";
-    $("medicineCategory").value = item.category || "";
-    $("batchNumber").value = item.batchNumber || "";
-    $("manufacturer").value = item.manufacturer || "";
-    $("supplier").value = item.supplier || "";
-    $("purchaseDate").value = item.purchaseDate || "";
-    $("expiryDate").value = item.expiryDate || "";
-    $("quantity").value = item.quantity ?? "";
-    $("unit").value = item.unit || "Bottles";
-    $("buyPrice").value = item.buyPrice ?? "";
-    $("salePrice").value = item.salePrice ?? "";
-    $("minStock").value = item.minStock ?? 20;
-    $("stockNotes").value = item.notes || "";
-
-  }
-
-  showModal("stockModal");
-
+function pageHead(title, desc, actions = '') { return `<div class="page-heading"><div><h2>${title}</h2><p>${desc}</p></div><div class="heading-actions">${actions}</div></div>`; }
+function button(label, action, cls = 'btn btn-primary', icon = '+') { return `<button class="${cls}" data-action="${action}"><span>${icon}</span>${label}</button>`; }
+function metric(label, value, foot, icon, tone = '') { return `<article class="metric-card"><div class="metric-top"><span class="metric-icon ${tone}">${icon}</span><span class="metric-trend">Live totals</span></div><span class="metric-label">${label}</span><strong class="metric-value">${value}</strong><small class="metric-foot">${foot}</small></article>`; }
+function table(headers, rows, empty = 'No records yet.') {
+  if (!rows.length) return `<div class="empty-state"><strong>Nothing here yet</strong>${esc(empty)}</div>`;
+  return `<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 }
-
-
-$("inventoryAddBtn").addEventListener(
-  "click",
-  () => openStockModal()
-);
-
-$("dashboardAddStockBtn").addEventListener(
-  "click",
-  () => openStockModal()
-);
-
-$("quickAddStock").addEventListener(
-  "click",
-  () => openStockModal()
-);
-
-
-/* Save inventory */
-
-$("stockForm").addEventListener("submit", async e => {
-
-  e.preventDefault();
-
-  if (!currentUser) return;
-
-  const id = $("stockId").value;
-
-  const data = {
-
-    name: $("medicineName").value.trim(),
-
-    category:
-      $("medicineCategory").value.trim(),
-
-    batchNumber:
-      $("batchNumber").value.trim(),
-
-    manufacturer:
-      $("manufacturer").value.trim(),
-
-    supplier:
-      $("supplier").value.trim(),
-
-    purchaseDate:
-      $("purchaseDate").value,
-
-    expiryDate:
-      $("expiryDate").value,
-
-    quantity:
-      Number($("quantity").value),
-
-    unit:
-      $("unit").value,
-
-    buyPrice:
-      Number($("buyPrice").value),
-
-    salePrice:
-      Number($("salePrice").value),
-
-    minStock:
-      Number($("minStock").value || 20),
-
-    notes:
-      $("stockNotes").value.trim(),
-
-    updatedAt:
-      Date.now()
-
-  };
-
-
-  try {
-
-    if (id) {
-
-      await updateDoc(
-        doc(
-          db,
-          "users",
-          currentUser.uid,
-          "inventory",
-          id
-        ),
-        data
-      );
-
-      showToast("Medicine updated.");
-
-    } else {
-
-      await addDoc(
-        collection(
-          db,
-          "users",
-          currentUser.uid,
-          "inventory"
-        ),
-        {
-          ...data,
-          createdAt: Date.now()
-        }
-      );
-
-      showToast("Medicine added successfully.");
-
-    }
-
-    hideModal("stockModal");
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      "Medicine save nahi ho saki.",
-      "error"
-    );
-
+function tr(cells) { return `<tr>${cells.map(c=>`<td>${c ?? '—'}</td>`).join('')}</tr>`; }
+function productName(id) { return data.products.find(p=>p.id===id)?.name || 'Deleted product'; }
+function filterItems(items, fields) { const s = searchText.trim().toLowerCase(); return !s ? items : items.filter(item => fields.some(f => String(item[f] ?? '').toLowerCase().includes(s))); }
+function currentSales() { return data.sales.filter(s => dateOf(s) === today()); }
+function netProfit() { return sum(data.sales,'profit') - sum(data.expenses,'amount') - sum(data.returns,'profitLoss'); }
+function salesThisMonth() { const month = today().slice(0,7); return data.sales.filter(s => dateOf(s).startsWith(month)); }
+function chartSeries(days = chartRange) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const rows = [];
+  for (let i=days-1;i>=0;i--) {
+    const d = new Date(now); d.setDate(now.getDate()-i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const value = data.sales.filter(s=>dateOf(s)===key).reduce((n,s)=>n+num(s.total),0);
+    rows.push({key, label:d.toLocaleDateString('en',{month:'short',day:'numeric'}), value});
   }
-
-});
-
-
-/* =====================================================
-   INVENTORY
-===================================================== */
-
-function getInventoryStatus(item) {
-
-  const qty = Number(item.quantity || 0);
-
-  if (qty <= 0) {
-    return "out";
-  }
-
-  if (isExpired(item.expiryDate)) {
-    return "expired";
-  }
-
-  if (isExpirySoon(item.expiryDate)) {
-    return "soon";
-  }
-
-  if (qty <= Number(item.minStock || 20)) {
-    return "low";
-  }
-
-  return "good";
-
+  return rows;
 }
-
-
-function isExpired(date) {
-
-  if (!date) return false;
-
-  return date <
-    todayString();
-
+function tradingChart() {
+  const rows = chartSeries();
+  const W=820,H=270,L=18,R=18,T=18,B=34, iw=W-L-R, ih=H-T-B;
+  const max=Math.max(1,...rows.map(r=>r.value));
+  const x=i=>L+(rows.length<2?iw/2:i/(rows.length-1)*iw);
+  const y=v=>T+ih-(v/max)*ih;
+  const points=rows.map((r,i)=>`${x(i).toFixed(1)},${y(r.value).toFixed(1)}`);
+  const line=points.length?`M ${points.join(' L ')}`:'';
+  const area=points.length?`${line} L ${x(rows.length-1).toFixed(1)},${(T+ih).toFixed(1)} L ${x(0).toFixed(1)},${(T+ih).toFixed(1)} Z`:'';
+  const grid=[0,1,2,3].map(i=>{const yy=T+ih*i/3;return `<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="#24334b" stroke-dasharray="4 7"/><text x="${L+2}" y="${yy-5}" fill="#70829f" font-size="10">${esc(money(max*(1-i/3)))}</text>`}).join('');
+  const dots=rows.map((r,i)=>`<circle class="trade-point" cx="${x(i).toFixed(1)}" cy="${y(r.value).toFixed(1)}" r="${rows.length<=31?3.2:1.8}" fill="#5aa8ff"><title>${esc(r.label)} · ${esc(money(r.value))}</title></circle>`).join('');
+  const labelIndices=[0,Math.floor((rows.length-1)/3),Math.floor((rows.length-1)*2/3),rows.length-1].filter((v,i,a)=>a.indexOf(v)===i);
+  const labels=labelIndices.map(i=>`<text x="${x(i)}" y="${H-9}" fill="#8292ad" font-size="10" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${esc(rows[i].label)}</text>`).join('');
+  const total=rows.reduce((n,r)=>n+r.value,0), previous=data.sales.filter(s=>{const d=dateOf(s);if(!d)return false;const dt=new Date(`${d}T00:00:00`);const now=new Date();now.setHours(0,0,0,0);return dt>=new Date(now.getTime()-(chartRange*2)*86400000)&&dt<new Date(now.getTime()-chartRange*86400000)}).reduce((n,s)=>n+num(s.total),0);
+  const change=previous?((total-previous)/previous*100):null;
+  const activeCount=rows.filter(r=>r.value>0).length;
+  return `<section class="trade-panel"><div class="trade-head"><div><div class="trade-kicker"><i></i> BUSINESS MARKET VIEW</div><h3>Sales performance</h3><p>Actual recorded revenue · ${chartRange===7?'last 7 days':chartRange===30?'last 30 days':chartRange===90?'last 90 days':chartRange===180?'last 6 months':'last 12 months'}</p></div><div class="trade-total"><small>PERIOD REVENUE</small><strong>${esc(money(total))}</strong><span class="${change===null?'trade-neutral':change>=0?'trade-up':'trade-down'}">${change===null?'No comparison yet':`${change>=0?'↑':'↓'} ${Math.abs(change).toFixed(1)}% vs previous period`}</span></div></div><div class="trade-controls">${Object.entries(rangeLabels).map(([d,label])=>`<button class="trade-range ${chartRange===Number(d)?'active':''}" data-chart-range="${d}">${label}</button>`).join('')}<span class="trade-legend"><i></i> Sales revenue</span></div><div class="trade-svg-wrap"><svg class="trade-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Recorded sales revenue line chart" preserveAspectRatio="none"><defs><linearGradient id="tradeFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#278bff" stop-opacity=".28"/><stop offset="100%" stop-color="#278bff" stop-opacity="0"/></linearGradient><filter id="tradeGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>${grid}<path d="${area}" fill="url(#tradeFill)"/><path d="${line}" fill="none" stroke="#278bff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#tradeGlow)"/>${dots}${labels}</svg>${activeCount===0?'<div class="trade-empty">No sales recorded in this period yet. Add a sale to start building your live chart.</div>':''}</div><div class="trade-foot"><span><i class="trade-live-dot"></i> Synced to your workspace</span><span>${activeCount} days with sales</span><span>Currency: ${esc(business.currency||'PKR')}</span></div></section>`;
 }
-
-
-function daysUntil(date) {
-
-  if (!date) return Infinity;
-
-  const now =
-    new Date(todayString() + "T00:00:00");
-
-  const target =
-    new Date(date + "T00:00:00");
-
-  return Math.ceil(
-    (target - now) / 86400000
-  );
-
+function renderDashboard() {
+  const low = data.products.filter(p=>num(p.stock)<=num(p.reorderLevel));
+  const soon = data.products.filter(p=>p.expiryDate && (new Date(`${p.expiryDate}T23:59:59`).getTime()-Date.now())<=30*86400000);
+  const alerts = [...low.slice(0,4).map(p=>`<div class="alert-row"><span class="alert-symbol red">!</span><div><b>${esc(p.name)}</b><small>Low stock: ${num(p.stock)} ${esc(p.unit||'units')} remaining.</small></div></div>`),...soon.slice(0,4).map(p=>`<div class="alert-row"><span class="alert-symbol">⌛</span><div><b>${esc(p.name)}</b><small>Expiry: ${esc(p.expiryDate)}.</small></div></div>`)];
+  const recent = [...data.sales].slice(0,6).map(s=>tr([`<span class="td-strong">${esc(s.invoiceNo||'Sale')}</span>`,esc(s.customerName||'Walk-in'),esc(dateOf(s)),money(s.total),`<span class="pill ${num(s.paid)>=num(s.total)?'green':'orange'}">${num(s.paid)>=num(s.total)?'Paid':'Due'}</span>`]));
+  return `${pageHead(`Good ${new Date().getHours()<12?'morning':new Date().getHours()<18?'afternoon':'evening'}, ${esc((currentUser?.displayName||'there').split(' ')[0])}`, 'Here is the latest overview of your business.', button('New sale','new-sale','btn btn-primary','＋'))}
+    <div class="metric-grid">${metric('Sales today',money(currentSales().reduce((n,s)=>n+num(s.total),0)),`${currentSales().length} invoices today`,'↗')}${metric('Sales this month',money(salesThisMonth().reduce((n,s)=>n+num(s.total),0)),`${salesThisMonth().length} invoices this month`,'▣','blue')}${metric('Estimated net profit',money(netProfit()),'Sales margin − expenses − returns','◈','purple')}${metric('Stock items',data.products.length,`${low.length} low-stock alerts`,'▤','orange')}</div>
+    <div class="dashboard-grid"><div>${tradingChart()}</div><section class="panel"><div class="panel-head"><div><h3>Quick actions</h3><p>Common tasks in one tap</p></div></div><div class="quick-grid"><button class="quick-action" data-action="new-product"><span>＋</span><b>Add stock</b><small>Add medicine to inventory</small></button><button class="quick-action" data-action="new-sale"><span>▣</span><b>Record sale</b><small>Create invoice</small></button><button class="quick-action" data-action="new-purchase"><span>⇩</span><b>Receive stock</b><small>Record purchase</small></button><button class="quick-action" data-action="new-expense"><span>↗</span><b>Add expense</b><small>Track spending</small></button></div></section></div>
+    <div class="dashboard-grid section-gap"><section class="panel table-panel"><div class="panel-head"><div><h3>Recent sales</h3><p>Latest recorded invoices</p></div><button class="btn btn-light" data-page-link="sales">View all →</button></div>${table(['Invoice','Customer','Date','Total','Payment'],recent,'Your latest sales will appear here.')}</section><section class="panel"><div class="panel-head"><div><h3>Attention needed</h3><p>Stock and expiry checks</p></div><span class="pill ${alerts.length?'orange':'green'}">${alerts.length} alerts</span></div><div class="alert-list">${alerts.length?alerts.join(''):'<div class="empty-state"><strong>All clear</strong>No low-stock or upcoming expiry alerts.</div>'}</div></section></div>`;
 }
-
-
-function isExpirySoon(date) {
-
-  const days = daysUntil(date);
-
-  return days >= 0 && days <= 30;
-
-}
-
-
-function statusHTML(item) {
-
-  const status =
-    getInventoryStatus(item);
-
-  const labels = {
-
-    good: "IN STOCK",
-    low: "LOW STOCK",
-    out: "OUT OF STOCK",
-    expired: "EXPIRED",
-    soon: "EXPIRING SOON"
-
-  };
-
-  return `
-    <span class="status-badge status-${status}">
-      ${labels[status]}
-    </span>
-  `;
-
-}
-
-
 function renderInventory() {
-
-  const search =
-    $("inventorySearch").value
-      .trim()
-      .toLowerCase();
-
-  const filter =
-    $("inventoryFilter").value;
-
-  const category =
-    $("inventoryCategory").value;
-
-
-  let list = [...inventory];
-
-
-  if (search) {
-
-    list = list.filter(item => {
-
-      return [
-        item.name,
-        item.batchNumber,
-        item.supplier,
-        item.manufacturer,
-        item.category
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(search);
-
-    });
-
-  }
-
-
-  if (filter !== "all") {
-
-    list = list.filter(
-      item =>
-        getInventoryStatus(item) === filter
-    );
-
-  }
-
-
-  if (category !== "all") {
-
-    list = list.filter(
-      item =>
-        item.category === category
-    );
-
-  }
-
-
-  const container =
-    $("inventoryTable");
-
-
-  if (!list.length) {
-
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">📦</div>
-        <strong>No medicines found</strong>
-        <span>Try changing your filters.</span>
-      </div>
-    `;
-
-    return;
-
-  }
-
-
-  container.innerHTML = `
-
-    <table class="data-table">
-
-      <thead>
-
-        <tr>
-          <th>Medicine</th>
-          <th>Batch</th>
-          <th>Category</th>
-          <th>Quantity</th>
-          <th>Buy Price</th>
-          <th>Sale Price</th>
-          <th>Expiry</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${list.map(item => `
-
-          <tr>
-
-            <td>
-              <strong>${escapeHTML(item.name)}</strong>
-              <small>${escapeHTML(item.supplier || "")}</small>
-            </td>
-
-            <td>${escapeHTML(item.batchNumber)}</td>
-
-            <td>${escapeHTML(item.category)}</td>
-
-            <td>
-              ${Number(item.quantity || 0)}
-              ${escapeHTML(item.unit || "")}
-            </td>
-
-            <td>${money(item.buyPrice)}</td>
-
-            <td>${money(item.salePrice)}</td>
-
-            <td>${escapeHTML(item.expiryDate)}</td>
-
-            <td>${statusHTML(item)}</td>
-
-            <td>
-
-              <div class="action-buttons">
-
-                <button
-                  class="icon-action"
-                  title="Sell"
-                  data-sale-item="${item.id}"
-                >
-                  💰
-                </button>
-
-                <button
-                  class="icon-action"
-                  title="Edit"
-                  data-edit-item="${item.id}"
-                >
-                  ✏️
-                </button>
-
-                <button
-                  class="icon-action delete"
-                  title="Delete"
-                  data-delete-item="${item.id}"
-                >
-                  🗑
-                </button>
-
-              </div>
-
-            </td>
-
-          </tr>
-
-        `).join("")}
-
-      </tbody>
-
-    </table>
-  `;
-
-
-  container
-    .querySelectorAll("[data-edit-item]")
-    .forEach(btn => {
-
-      btn.addEventListener("click", () => {
-
-        openStockModal(
-          btn.dataset.editItem
-        );
-
-      });
-
-    });
-
-
-  container
-    .querySelectorAll("[data-sale-item]")
-    .forEach(btn => {
-
-      btn.addEventListener("click", () => {
-
-        openSaleModal(
-          btn.dataset.saleItem
-        );
-
-      });
-
-    });
-
-
-  container
-    .querySelectorAll("[data-delete-item]")
-    .forEach(btn => {
-
-      btn.addEventListener("click", async () => {
-
-        const id =
-          btn.dataset.deleteItem;
-
-        if (!confirm(
-          "Delete this medicine permanently?"
-        )) return;
-
-        try {
-
-          await deleteDoc(
-            doc(
-              db,
-              "users",
-              currentUser.uid,
-              "inventory",
-              id
-            )
-          );
-
-          showToast("Medicine deleted.");
-
-        } catch (error) {
-
-          showToast(
-            "Delete failed.",
-            "error"
-          );
-
-        }
-
-      });
-
-    });
-
+  const items = filterItems(data.products,['name','sku','medicineType','category','batch']);
+  const rows = items.map(p=>tr([`<span class="td-strong">${esc(p.name)}</span><br><span class="muted-text">${esc(p.sku||'No SKU')}</span>`,esc(p.medicineType||p.category||'Other'),money(p.costPrice),money(p.salePrice),`${num(p.stock)} ${esc(p.unit||'units')}`,num(p.stock)<=num(p.reorderLevel)?'<span class="pill red">Low stock</span>':'<span class="pill green">In stock</span>',esc(p.expiryDate||'—'),`<div class="row-actions"><button class="mini-btn" data-action="edit" data-type="product" data-id="${p.id}">Edit</button><button class="mini-btn text-danger" data-action="delete" data-type="product" data-id="${p.id}">Delete</button></div>`]));
+  return `${pageHead('Medicine Stock','Add medicines, purchase/sale prices, quantity, batch numbers and expiry dates.',button('Add stock','new-product','btn btn-primary','＋'))}<div class="metric-grid">${metric('Products',data.products.length,'All catalog items','▤')}${metric('Stock value',money(data.products.reduce((n,p)=>n+num(p.stock)*num(p.costPrice),0)),'Quantity × purchase cost','◈','blue')}${metric('Low stock',data.products.filter(p=>num(p.stock)<=num(p.reorderLevel)).length,'Below or at reorder level','!','orange')}${metric('Expiry alerts',data.products.filter(p=>p.expiryDate && (new Date(`${p.expiryDate}T23:59:59`).getTime()-Date.now())<=30*86400000).length,'Expired or within 30 days','⌛','red')}</div><section class="panel table-panel"><div class="panel-head"><div><h3>Product catalogue</h3><p>${items.length} matching products</p></div><div class="table-tools"><input data-search placeholder="Filter products…" value="${esc(searchText)}"><button class="btn btn-light" data-action="export-products">Export CSV</button></div></div>${table(['Product name / SKU','Medicine type','Buy price','Sale price','Stock','Status','Expiry','Actions'],rows,'Add your first medicine to start tracking stock.')}</section>`;
 }
-
-
-/* Inventory filters */
-
-$("inventorySearch").addEventListener(
-  "input",
-  renderInventory
-);
-
-$("inventoryFilter").addEventListener(
-  "change",
-  renderInventory
-);
-
-$("inventoryCategory").addEventListener(
-  "change",
-  renderInventory
-);
-
-
-/* Categories */
-
-function renderCategories() {
-
-  const categories =
-    [...new Set(
-      inventory
-        .map(x => x.category)
-        .filter(Boolean)
-    )]
-    .sort();
-
-  $("inventoryCategory").innerHTML = `
-    <option value="all">All Categories</option>
-
-    ${categories.map(category => `
-      <option value="${escapeHTML(category)}">
-        ${escapeHTML(category)}
-      </option>
-    `).join("")}
-  `;
-
-}
-
-
-/* =====================================================
-   SALES MODAL
-===================================================== */
-
-function generateInvoiceNumber() {
-
-  const number =
-    String(Date.now()).slice(-6);
-
-  return "PM-" + number;
-
-}
-
-
-function openSaleModal(itemId = null) {
-
-  $("saleForm").reset();
-
-  $("deliveryDate").value =
-    todayString();
-
-  $("invoiceNumber").value =
-    generateInvoiceNumber();
-
-  populateSaleInventory(itemId);
-
-  updateSalePreview();
-
-  showModal("saleModal");
-
-}
-
-
-function populateSaleInventory(selectedId = null) {
-
-  const options =
-    inventory
-      .filter(item => Number(item.quantity || 0) > 0)
-      .filter(item => !isExpired(item.expiryDate))
-      .map(item => `
-
-        <option
-          value="${item.id}"
-          ${selectedId === item.id ? "selected" : ""}
-        >
-          ${escapeHTML(item.name)}
-          | Batch: ${escapeHTML(item.batchNumber)}
-          | Stock: ${item.quantity} ${escapeHTML(item.unit || "")}
-        </option>
-
-      `)
-      .join("");
-
-  $("saleInventory").innerHTML = `
-
-    <option value="">
-      Select medicine
-    </option>
-
-    ${options}
-
-  `;
-
-  updateSelectedSaleItem();
-
-}
-
-
-$("saleInventory").addEventListener(
-  "change",
-  updateSelectedSaleItem
-);
-
-
-function updateSelectedSaleItem() {
-
-  const id =
-    $("saleInventory").value;
-
-  const item =
-    inventory.find(x => x.id === id);
-
-  if (!item) {
-
-    $("availableStock").textContent = "";
-
-    $("saleUnitPrice").value = "";
-
-    return;
-
-  }
-
-  $("availableStock").textContent =
-    `Available: ${item.quantity} ${item.unit || ""}`;
-
-  $("saleUnitPrice").value =
-    item.salePrice || 0;
-
-  updateSalePreview();
-
-}
-
-
-$("saleQuantity").addEventListener(
-  "input",
-  updateSalePreview
-);
-
-$("saleUnitPrice").addEventListener(
-  "input",
-  updateSalePreview
-);
-
-$("saleDiscount").addEventListener(
-  "input",
-  updateSalePreview
-);
-
-
-function calculateSaleTotals() {
-
-  const quantity =
-    Number($("saleQuantity").value || 0);
-
-  const price =
-    Number($("saleUnitPrice").value || 0);
-
-  const discount =
-    Number($("saleDiscount").value || 0);
-
-  const subtotal =
-    quantity * price;
-
-  const total =
-    Math.max(
-      0,
-      subtotal - discount
-    );
-
-  return {
-    quantity,
-    price,
-    discount,
-    subtotal,
-    total
-  };
-
-}
-
-
-function updateSalePreview() {
-
-  const totals =
-    calculateSaleTotals();
-
-  $("saleSubtotal").textContent =
-    money(totals.subtotal);
-
-  $("saleDiscountPreview").textContent =
-    money(totals.discount);
-
-  $("saleGrandTotal").textContent =
-    money(totals.total);
-
-}
-
-
-/* =====================================================
-   COMPLETE SALE
-===================================================== */
-
-$("saleForm").addEventListener("submit", async e => {
-
-  e.preventDefault();
-
-  if (!currentUser) return;
-
-  const inventoryId =
-    $("saleInventory").value;
-
-  if (!inventoryId) {
-
-    showToast(
-      "Medicine select karein.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  const quantity =
-    Number($("saleQuantity").value);
-
-  const salePrice =
-    Number($("saleUnitPrice").value);
-
-  const discount =
-    Number($("saleDiscount").value || 0);
-
-  const customer =
-    $("customerName").value.trim();
-
-  const totals =
-    calculateSaleTotals();
-
-
-  if (quantity <= 0) {
-
-    showToast(
-      "Quantity valid honi chahiye.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  if (salePrice < 0) {
-
-    showToast(
-      "Sale price invalid hai.",
-      "error"
-    );
-
-    return;
-
-  }
-
-
-  try {
-
-    const inventoryRef =
-      doc(
-        db,
-        "users",
-        currentUser.uid,
-        "inventory",
-        inventoryId
-      );
-
-
-    const salesCollection =
-      collection(
-        db,
-        "users",
-        currentUser.uid,
-        "sales"
-      );
-
-
-    const saleRef =
-      doc(salesCollection);
-
-
-    await runTransaction(
-      db,
-      async transaction => {
-
-        const stockSnapshot =
-          await transaction.get(
-            inventoryRef
-          );
-
-
-        if (!stockSnapshot.exists()) {
-
-          throw new Error(
-            "Medicine not found."
-          );
-
-        }
-
-
-        const item =
-          stockSnapshot.data();
-
-
-        const currentQty =
-          Number(item.quantity || 0);
-
-
-        if (quantity > currentQty) {
-
-          throw new Error(
-            `Only ${currentQty} ${item.unit || ""} available hai.`
-          );
-
-        }
-
-
-        const remaining =
-          currentQty - quantity;
-
-
-        const costPerUnit =
-          Number(item.buyPrice || 0);
-
-
-        const totalCost =
-          costPerUnit * quantity;
-
-
-        const profit =
-          totals.total - totalCost;
-
-
-        transaction.update(
-          inventoryRef,
-          {
-            quantity: remaining,
-            updatedAt: Date.now()
-          }
-        );
-
-
-        transaction.set(
-          saleRef,
-          {
-
-            invoiceNumber:
-              $("invoiceNumber").value,
-
-            inventoryId,
-
-            medicineName:
-              item.name || "",
-
-            category:
-              item.category || "",
-
-            batchNumber:
-              item.batchNumber || "",
-
-            customerName:
-              customer,
-
-            customerPhone:
-              $("customerPhone").value.trim(),
-
-            salesmanName:
-              $("salesmanName").value.trim(),
-
-            salesmanPhone:
-              $("salesmanPhone").value.trim(),
-
-            quantity,
-
-            unit:
-              item.unit || "",
-
-            buyPrice:
-              costPerUnit,
-
-            salePrice:
-
-              salePrice,
-
-            subtotal:
-              totals.subtotal,
-
-            discount,
-
-            total:
-              totals.total,
-
-            profit,
-
-            deliveryDate:
-              $("deliveryDate").value,
-
-            paymentStatus:
-              $("paymentStatus").value,
-
-            paidAmount:
-              Number($("paidAmount").value || 0),
-
-            remainingAmount:
-              Math.max(
-                0,
-                totals.total -
-                Number($("paidAmount").value || 0)
-              ),
-
-            notes:
-              $("saleNotes").value.trim(),
-
-            createdAt:
-              Date.now()
-
-          }
-        );
-
-      }
-    );
-
-
-    currentInvoice = {
-
-      invoiceNumber:
-        $("invoiceNumber").value,
-
-      medicineName:
-        inventory.find(
-          x => x.id === inventoryId
-        )?.name || "",
-
-      batchNumber:
-        inventory.find(
-          x => x.id === inventoryId
-        )?.batchNumber || "",
-
-      customerName:
-        customer,
-
-      customerPhone:
-        $("customerPhone").value.trim(),
-
-      salesmanName:
-        $("salesmanName").value.trim(),
-
-      salesmanPhone:
-        $("salesmanPhone").value.trim(),
-
-      quantity,
-
-      unit:
-        inventory.find(
-          x => x.id === inventoryId
-        )?.unit || "",
-
-      salePrice,
-
-      subtotal:
-        totals.subtotal,
-
-      discount,
-
-      total:
-        totals.total,
-
-      paidAmount:
-        Number($("paidAmount").value || 0),
-
-      remainingAmount:
-        Math.max(
-          0,
-          totals.total -
-          Number($("paidAmount").value || 0)
-        ),
-
-      deliveryDate:
-        $("deliveryDate").value
-
-    };
-
-
-    hideModal("saleModal");
-
-    showToast(
-      "Sale completed successfully."
-    );
-
-    renderInvoice(currentInvoice);
-
-    showModal("invoiceModal");
-
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      error.message ||
-      "Sale complete nahi ho saki.",
-      "error"
-    );
-
-  }
-
-});
-
-
-$("quickSaleBtn").addEventListener(
-  "click",
-  () => openSaleModal()
-);
-
-$("quickNewSale").addEventListener(
-  "click",
-  () => openSaleModal()
-);
-
-$("salesNewBtn").addEventListener(
-  "click",
-  () => openSaleModal()
-);
-
-
-/* =====================================================
-   SALES RENDER
-===================================================== */
-
 function renderSales() {
-
-  const search =
-    $("salesSearch").value
-      .trim()
-      .toLowerCase();
-
-  const period =
-    $("salesPeriod").value;
-
-
-  let list =
-    [...sales]
-      .sort(
-        (a, b) =>
-          Number(b.createdAt || 0) -
-          Number(a.createdAt || 0)
-      );
-
-
-  if (search) {
-
-    list = list.filter(sale => {
-
-      return [
-        sale.medicineName,
-        sale.customerName,
-        sale.salesmanName,
-        sale.invoiceNumber,
-        sale.batchNumber
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(search);
-
-    });
-
-  }
-
-
-  const today =
-    todayString();
-
-  if (period === "today") {
-
-    list =
-      list.filter(
-        x =>
-          x.deliveryDate === today
-      );
-
-  }
-
-
-  if (period === "month") {
-
-    const prefix =
-      today.slice(0, 7);
-
-    list =
-      list.filter(
-        x =>
-          String(x.deliveryDate || "")
-            .startsWith(prefix)
-      );
-
-  }
-
-
-  if (period === "year") {
-
-    const prefix =
-      today.slice(0, 4);
-
-    list =
-      list.filter(
-        x =>
-          String(x.deliveryDate || "")
-            .startsWith(prefix)
-      );
-
-  }
-
-
-  if (!list.length) {
-
-    $("salesTable").innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">💰</div>
-        <strong>No sales found</strong>
-        <span>Sales will appear here after completing a sale.</span>
-      </div>
-    `;
-
-    return;
-
-  }
-
-
-  $("salesTable").innerHTML = `
-
-    <table class="data-table">
-
-      <thead>
-
-        <tr>
-          <th>Invoice</th>
-          <th>Date</th>
-          <th>Medicine</th>
-          <th>Customer</th>
-          <th>Salesman</th>
-          <th>Qty</th>
-          <th>Total</th>
-          <th>Profit</th>
-          <th>Payment</th>
-          <th>Action</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${list.map(sale => `
-
-          <tr>
-
-            <td>
-              <strong>
-                ${escapeHTML(sale.invoiceNumber)}
-              </strong>
-            </td>
-
-            <td>
-              ${escapeHTML(sale.deliveryDate)}
-            </td>
-
-            <td>
-              ${escapeHTML(sale.medicineName)}
-              <small>
-                ${escapeHTML(sale.batchNumber)}
-              </small>
-            </td>
-
-            <td>
-              ${escapeHTML(sale.customerName)}
-              <small>
-                ${escapeHTML(sale.customerPhone || "")}
-              </small>
-            </td>
-
-            <td>
-              ${escapeHTML(sale.salesmanName || "-")}
-            </td>
-
-            <td>
-              ${sale.quantity}
-              ${escapeHTML(sale.unit || "")}
-            </td>
-
-            <td>
-              ${money(sale.total)}
-            </td>
-
-            <td>
-              <strong>
-                ${money(sale.profit)}
-              </strong>
-            </td>
-
-            <td>
-              ${paymentBadge(sale.paymentStatus)}
-            </td>
-
-            <td>
-
-              <button
-                class="icon-action"
-                data-print-sale="${sale.id}"
-                title="Invoice"
-              >
-                🧾
-              </button>
-
-            </td>
-
-          </tr>
-
-        `).join("")}
-
-      </tbody>
-
-    </table>
-  `;
-
-
-  $("salesTable")
-    .querySelectorAll("[data-print-sale]")
-    .forEach(btn => {
-
-      btn.addEventListener("click", () => {
-
-        const sale =
-          sales.find(
-            x =>
-              x.id === btn.dataset.printSale
-          );
-
-        if (!sale) return;
-
-        currentInvoice =
-          invoiceFromSale(sale);
-
-        renderInvoice(currentInvoice);
-
-        showModal("invoiceModal");
-
-      });
-
-    });
-
+  const items = filterItems(data.sales,['invoiceNo','customerName','customerPhone','paymentMethod']);
+  const rows = items.map(s=>tr([`<span class="td-strong">${esc(s.invoiceNo)}</span>`,esc(s.customerName||'Walk-in'),esc(s.customerPhone||'—'),esc(dateOf(s)),(s.items||[]).map(i=>`<span class="td-strong">${esc(i.name||productName(i.productId))}</span> × ${num(i.quantity)}`).join('<br>'),money(s.total),money(s.paid),money(Math.max(0,num(s.total)-num(s.paid))),`<button class="mini-btn" data-action="view-sale" data-id="${s.id}">Details</button>`]));
+  return `${pageHead('Sales & POS','Create multi-item invoices and track payments, stock movement and margins.',button('New sale','new-sale','btn btn-primary','＋'))}<div class="metric-grid">${metric('Total sales',money(sum(data.sales,'total')),'All recorded invoices','↗')}${metric('Collected',money(sum(data.sales,'paid')),'Payments recorded','✓','blue')}${metric('Customer dues',money(data.sales.reduce((n,s)=>n+Math.max(0,num(s.total)-num(s.paid)),0)),'Unpaid invoice balances','◷','orange')}${metric('Gross margin',money(sum(data.sales,'profit')),'Based on stored item costs','◈','purple')}</div><section class="panel table-panel"><div class="panel-head"><div><h3>Sales history</h3><p>Each sale adjusts stock using a Firestore transaction.</p></div><div class="table-tools"><input data-search placeholder="Search invoices…" value="${esc(searchText)}"><button class="btn btn-light" data-action="export-sales">Export CSV</button></div></div>${table(['Invoice','Customer name','Contact number','Date','Product name / quantity','Total','Paid','Due',''],rows,'No sales recorded yet.')}</section>`;
 }
-
-
-function paymentBadge(status) {
-
-  const labels = {
-
-    paid: "PAID",
-    partial: "PARTIAL",
-    unpaid: "UNPAID"
-
-  };
-
-  return `
-    <span class="status-badge ${
-      status === "paid"
-        ? "status-good"
-        : status === "partial"
-          ? "status-soon"
-          : "status-expired"
-    }">
-      ${labels[status] || "UNKNOWN"}
-    </span>
-  `;
-
+function renderPurchases() {
+  const items = filterItems(data.purchases,['supplierName','supplierPhone','reference']);
+  const rows = items.map(p=>tr([esc(p.reference||'Purchase'),esc(p.supplierName||'Supplier'),esc(p.supplierPhone||'—'),esc(dateOf(p)),(p.items||[]).map(i=>`${esc(i.name)} × ${num(i.quantity)}`).join('<br>'),money(p.total),esc(p.paymentStatus||'Recorded')]));
+  return `${pageHead('Purchases','Record stock received from suppliers and update inventory automatically.',button('Record purchase','new-purchase','btn btn-primary','＋'))}<div class="metric-grid">${metric('Purchase total',money(sum(data.purchases,'total')),'All recorded purchases','⇩')}${metric('Purchase entries',data.purchases.length,'Stock-in transactions','▤','blue')}${metric('Products stocked',new Set(data.purchases.flatMap(p=>(p.items||[]).map(i=>i.productId))).size,'Unique products purchased','◈','purple')}${metric('Supplier records',data.suppliers.length,'Saved suppliers','♧','orange')}</div><section class="panel table-panel"><div class="panel-head"><div><h3>Purchase history</h3><p>Stock quantities increase after a successful purchase.</p></div><div class="table-tools"><input data-search placeholder="Search purchases…" value="${esc(searchText)}"><button class="btn btn-light" data-action="export-purchases">Export CSV</button></div></div>${table(['Reference','Supplier','Supplier contact number','Date','Product name / quantity','Total','Status'],rows,'No purchases recorded yet.')}</section>`;
 }
-
-
-$("salesSearch").addEventListener(
-  "input",
-  renderSales
-);
-
-$("salesPeriod").addEventListener(
-  "change",
-  renderSales
-);
-
-
-/* =====================================================
-   CUSTOMER DATA
-===================================================== */
-
-function getCustomers() {
-
-  const map = new Map();
-
-
-  sales.forEach(sale => {
-
-    const name =
-      sale.customerName?.trim();
-
-    if (!name) return;
-
-    const key =
-      name.toLowerCase();
-
-
-    if (!map.has(key)) {
-
-      map.set(key, {
-
-        name,
-
-        phone:
-          sale.customerPhone || "",
-
-        sales: 0,
-
-        quantity: 0,
-
-        profit: 0,
-
-        lastDate:
-          sale.deliveryDate || ""
-
-      });
-
-    }
-
-
-    const customer =
-      map.get(key);
-
-
-    customer.sales +=
-      Number(sale.total || 0);
-
-    customer.quantity +=
-      Number(sale.quantity || 0);
-
-    customer.profit +=
-      Number(sale.profit || 0);
-
-
-    if (
-      String(sale.deliveryDate || "") >
-      String(customer.lastDate || "")
-    ) {
-
-      customer.lastDate =
-        sale.deliveryDate;
-
-    }
-
-  });
-
-
-  return [...map.values()];
-
+function renderContacts(type) {
+  const isCustomer = type==='customers', name = isCustomer?'Customer':'Supplier', items = filterItems(data[type],['name','phone','email']);
+  const rows = items.map(x=>tr([`<span class="td-strong">${esc(x.name)}</span>`,esc(x.phone||'—'),esc(x.email||'—'),money(x.openingBalance),esc(x.address||'—'),`<div class="row-actions"><button class="mini-btn" data-action="edit" data-type="${type.slice(0,-1)}" data-id="${x.id}">Edit</button><button class="mini-btn text-danger" data-action="delete" data-type="${type.slice(0,-1)}" data-id="${x.id}">Delete</button></div>`]));
+  return `${pageHead(isCustomer?'Customers & Khata':'Suppliers',isCustomer?'Keep customer contact details and opening balances for your khata.':'Maintain supplier contacts and opening balances.',button(`Add ${name.toLowerCase()}`,'new-'+(isCustomer?'customer':'supplier'),'btn btn-primary','＋'))}<div class="metric-grid">${metric(`${name}s`,items.length,'Saved contacts','♙')}${metric('Opening balances',money(sum(items,'openingBalance')),'Balances entered manually','◈','blue')}${metric('With phone',items.filter(x=>x.phone).length,'Contact details available','☎','purple')}${metric('With email',items.filter(x=>x.email).length,'Email addresses saved','✉','orange')}</div><section class="panel table-panel"><div class="panel-head"><div><h3>${name} directory</h3><p>Search and edit saved contact details.</p></div><div class="table-tools"><input data-search placeholder="Search ${name.toLowerCase()}s…" value="${esc(searchText)}"><button class="btn btn-light" data-action="export-${type}">Export CSV</button></div></div>${table([name,isCustomer?'Contact number':'Supplier contact number','Email','Opening balance','Address','Actions'],rows,`No ${name.toLowerCase()} records yet.`)}</section>`;
 }
-
-
-function renderCustomers() {
-
-  const search =
-    $("customerSearch").value
-      .trim()
-      .toLowerCase();
-
-
-  let list =
-    getCustomers();
-
-
-  if (search) {
-
-    list =
-      list.filter(customer =>
-        `${customer.name} ${customer.phone}`
-          .toLowerCase()
-          .includes(search)
-      );
-
-  }
-
-
-  if (!list.length) {
-
-    $("customersGrid").innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">👥</div>
-        <strong>No customers found</strong>
-      </div>
-    `;
-
-    return;
-
-  }
-
-
-  $("customersGrid").innerHTML =
-
-    list.map(customer => `
-
-      <div class="person-card">
-
-        <div class="person-top">
-
-          <div class="person-avatar">
-            ${escapeHTML(
-              customer.name.charAt(0).toUpperCase()
-            )}
-          </div>
-
-          <div>
-            <h3>
-              ${escapeHTML(customer.name)}
-            </h3>
-
-            <small>
-              ${escapeHTML(customer.phone || "No phone")}
-            </small>
-          </div>
-
-        </div>
-
-
-        <div class="person-stats">
-
-          <div class="person-stat">
-            <span>Total Purchases</span>
-            <strong>${money(customer.sales)}</strong>
-          </div>
-
-          <div class="person-stat">
-            <span>Quantity</span>
-            <strong>${customer.quantity}</strong>
-          </div>
-
-          <div class="person-stat">
-            <span>Profit</span>
-            <strong>${money(customer.profit)}</strong>
-          </div>
-
-          <div class="person-stat">
-            <span>Last Purchase</span>
-            <strong>${escapeHTML(customer.lastDate)}</strong>
-          </div>
-
-        </div>
-
-      </div>
-
-    `).join("");
-
+function renderExpenses() {
+  const items = filterItems(data.expenses,['title','category','note']);
+  const rows = items.map(x=>tr([`<span class="td-strong">${esc(x.title)}</span>`,esc(x.category||'Other'),esc(dateOf(x)),esc(x.note||'—'),money(x.amount),`<div class="row-actions"><button class="mini-btn" data-action="edit" data-type="expense" data-id="${x.id}">Edit</button><button class="mini-btn text-danger" data-action="delete" data-type="expense" data-id="${x.id}">Delete</button></div>`]));
+  return `${pageHead('Expenses','Record rent, salaries, utilities, transport and other operating costs.',button('Add expense','new-expense','btn btn-primary','＋'))}<div class="metric-grid">${metric('Total expenses',money(sum(data.expenses,'amount')),'All saved expenses','↗','orange')}${metric('This month',money(data.expenses.filter(x=>dateOf(x).startsWith(today().slice(0,7))).reduce((n,x)=>n+num(x.amount),0)),'Expenses this month','◷','blue')}${metric('Expense entries',items.length,'Saved records','▤')}${metric('Net estimate',money(netProfit()),'Sales profit less expenses and returns','◈','purple')}</div><section class="panel table-panel"><div class="panel-head"><div><h3>Expense ledger</h3><p>Expenses reduce the estimated net profit.</p></div><div class="table-tools"><input data-search placeholder="Search expenses…" value="${esc(searchText)}"><button class="btn btn-light" data-action="export-expenses">Export CSV</button></div></div>${table(['Expense','Category','Date','Note','Amount','Actions'],rows,'No expenses recorded yet.')}</section>`;
 }
-
-
-$("customerSearch").addEventListener(
-  "input",
-  renderCustomers
-);
-
-
-/* =====================================================
-   SALESMEN
-===================================================== */
-
-function getSalesmen() {
-
-  const map = new Map();
-
-
-  sales.forEach(sale => {
-
-    const name =
-      sale.salesmanName?.trim();
-
-    if (!name) return;
-
-
-    const key =
-      name.toLowerCase();
-
-
-    if (!map.has(key)) {
-
-      map.set(key, {
-
-        name,
-
-        phone:
-          sale.salesmanPhone || "",
-
-        deliveries: 0,
-
-        quantity: 0,
-
-        sales: 0,
-
-        profit: 0
-
-      });
-
-    }
-
-
-    const person =
-      map.get(key);
-
-
-    person.deliveries++;
-
-    person.quantity +=
-      Number(sale.quantity || 0);
-
-    person.sales +=
-      Number(sale.total || 0);
-
-    person.profit +=
-      Number(sale.profit || 0);
-
-  });
-
-
-  return [...map.values()];
-
+function renderDeliveries() {
+  const items = filterItems(data.deliveries,['customerName','details','salesperson','status']);
+  const rows = items.map(d=>tr([`<span class="td-strong">${esc(d.customerName)}</span>`,esc(d.details),esc(d.salesperson),esc(dateOf(d)),`<span class="pill ${d.status==='Delivered'?'green':d.status==='Failed'?'red':'orange'}">${esc(d.status||'Pending')}</span>`,`<div class="row-actions"><button class="mini-btn" data-action="edit" data-type="delivery" data-id="${d.id}">Edit</button><button class="mini-btn text-danger" data-action="delete" data-type="delivery" data-id="${d.id}">Delete</button></div>`]));
+  return `${pageHead('Deliveries','Track which products and quantities were sent, by whom and on what date.',button('Add delivery','new-delivery','btn btn-primary','＋'))}<div class="metric-grid">${metric('All deliveries',data.deliveries.length,'Delivery records','⇢')}${metric('Pending',data.deliveries.filter(d=>d.status==='Pending').length,'Awaiting dispatch','◷','orange')}${metric('Dispatched',data.deliveries.filter(d=>d.status==='Dispatched').length,'On the way','⇢','blue')}${metric('Delivered',data.deliveries.filter(d=>d.status==='Delivered').length,'Marked complete','✓')}</div><section class="panel table-panel"><div class="panel-head"><div><h3>Delivery register</h3><p>Record customer, item details, salesperson and delivery status.</p></div><div class="table-tools"><input data-search placeholder="Search deliveries…" value="${esc(searchText)}"><button class="btn btn-light" data-action="export-deliveries">Export CSV</button></div></div>${table(['Customer','Items / quantity','Salesperson','Date','Status','Actions'],rows,'No deliveries recorded yet.')}</section>`;
 }
-
-
-function renderSalesmen() {
-
-  const search =
-    $("salesmanSearch").value
-      .trim()
-      .toLowerCase();
-
-
-  let list =
-    getSalesmen();
-
-
-  if (search) {
-
-    list =
-      list.filter(person =>
-        `${person.name} ${person.phone}`
-          .toLowerCase()
-          .includes(search)
-      );
-
-  }
-
-
-  if (!list.length) {
-
-    $("salesmenGrid").innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">🚚</div>
-        <strong>No salesman records found</strong>
-      </div>
-    `;
-
-    return;
-
-  }
-
-
-  $("salesmenGrid").innerHTML =
-
-    list.map(person => `
-
-      <div class="person-card">
-
-        <div class="person-top">
-
-          <div class="person-avatar">
-            🚚
-          </div>
-
-          <div>
-            <h3>
-              ${escapeHTML(person.name)}
-            </h3>
-
-            <small>
-              ${escapeHTML(person.phone || "No phone")}
-            </small>
-          </div>
-
-        </div>
-
-
-        <div class="person-stats">
-
-          <div class="person-stat">
-            <span>Deliveries</span>
-            <strong>${person.deliveries}</strong>
-          </div>
-
-          <div class="person-stat">
-            <span>Quantity</span>
-            <strong>${person.quantity}</strong>
-          </div>
-
-          <div class="person-stat">
-            <span>Sales</span>
-            <strong>${money(person.sales)}</strong>
-          </div>
-
-          <div class="person-stat">
-            <span>Profit</span>
-            <strong>${money(person.profit)}</strong>
-          </div>
-
-        </div>
-
-      </div>
-
-    `).join("");
-
+function renderReturns() {
+  const rows = filterItems(data.returns,['invoiceNo','customerName','reason']).map(r=>tr([esc(r.invoiceNo||'—'),esc(r.customerName||'—'),esc(dateOf(r)),esc(r.items?.map(i=>`${i.name} × ${i.quantity}`).join(', ')||'—'),money(r.amount),money(r.profitLoss),esc(r.reason||'—')]));
+  return `${pageHead('Returns & refunds','Record returned items and refund amounts. Returned quantities are added back to stock.',button('Record return','new-return','btn btn-primary','＋'))}<div class="metric-grid">${metric('Return records',data.returns.length,'Saved return transactions','↶','orange')}${metric('Refund amount',money(sum(data.returns,'amount')),'Recorded refund values','↗','red')}${metric('Profit adjustment',money(sum(data.returns,'profitLoss')),'Return margin reversal','◈','purple')}${metric('Net estimate',money(netProfit()),'After expenses and returns','▤','blue')}</div><section class="panel table-panel"><div class="panel-head"><div><h3>Returns history</h3><p>For audit accuracy, the return is stored separately from the original sale.</p></div><div class="table-tools"><input data-search placeholder="Search returns…" value="${esc(searchText)}"><button class="btn btn-light" data-action="export-returns">Export CSV</button></div></div>${table(['Invoice','Customer','Date','Returned items','Refund','Profit adjustment','Reason'],rows,'No returns recorded yet.')}</section>`;
 }
-
-
-$("salesmanSearch").addEventListener(
-  "input",
-  renderSalesmen
-);
-
-
-/* =====================================================
-   REPORTS
-===================================================== */
-
-function datePrefix(type) {
-
-  const today =
-    todayString();
-
-  if (type === "today") {
-    return today;
-  }
-
-  if (type === "month") {
-    return today.slice(0, 7);
-  }
-
-  if (type === "year") {
-    return today.slice(0, 4);
-  }
-
-  return "";
-
+function renderLedger() {
+  const rows = [];
+  data.sales.forEach(s => rows.push({date:dateOf(s), type:'Sale', reference:s.invoiceNo||'Sale', party:s.customerName||'Walk-in', details:(s.items||[]).map(i=>`${i.name||productName(i.productId)} × ${num(i.quantity)}`).join(', '), incoming:num(s.paid), outgoing:0, note:num(s.total)>num(s.paid)?`Outstanding due ${money(num(s.total)-num(s.paid))}`:''}));
+  data.purchases.forEach(p => rows.push({date:dateOf(p), type:'Purchase', reference:p.reference||'Purchase', party:p.supplierName||'Supplier', details:(p.items||[]).map(i=>`${i.name||productName(i.productId)} × ${num(i.quantity)}`).join(', '), incoming:0, outgoing:num(p.paid), note:num(p.total)>num(p.paid)?`Supplier balance ${money(num(p.total)-num(p.paid))}`:''}));
+  data.expenses.forEach(x => rows.push({date:dateOf(x), type:'Expense', reference:x.title||'Expense', party:x.category||'Business', details:x.note||'', incoming:0, outgoing:num(x.amount), note:''}));
+  data.returns.forEach(x => rows.push({date:dateOf(x), type:'Return / refund', reference:x.invoiceNo||'Return', party:x.customerName||'Customer', details:(x.items||[]).map(i=>`${i.name||productName(i.productId)} × ${num(i.quantity)}`).join(', '), incoming:0, outgoing:num(x.amount), note:x.reason||''}));
+  data.ledger.filter(x=>x.type==='customer_due').forEach(x => rows.push({date:dateOf(x),type:'Customer due',reference:x.note||'Outstanding',party:x.customerName||'Customer',details:'Credit sale outstanding; not cash received',incoming:0,outgoing:0,note:`Receivable ${money(x.amount)}`}));
+  rows.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  let balance=0;
+  rows.forEach(x=>{balance+=x.incoming-x.outgoing;x.balance=balance;});
+  const q=searchText.trim().toLowerCase();
+  const tableRows=rows.filter(x=>!q||[x.date,x.type,x.reference,x.party,x.details,x.note].join(' ').toLowerCase().includes(q)).map(x=>tr([esc(x.date||'—'),`<span class="pill ${x.type==='Sale'?'green':x.type==='Purchase'||x.type==='Expense'||x.type==='Return / refund'?'orange':'blue'}">${esc(x.type)}</span>`,esc(x.reference),esc(x.party),esc(x.details||'—'),money(x.incoming),money(x.outgoing),`<b>${money(x.balance)}</b>`,esc(x.note||'—')]));
+  const cashIn=rows.reduce((n,x)=>n+x.incoming,0), cashOut=rows.reduce((n,x)=>n+x.outgoing,0), due=data.sales.reduce((n,x)=>n+Math.max(0,num(x.total)-num(x.paid)),0), supplierDue=data.purchases.reduce((n,x)=>n+Math.max(0,num(x.total)-num(x.paid)),0);
+  return `${pageHead('Ledger','A date-wise register of cash received, payments, purchases, expenses and outstanding balances.',`<button class="btn btn-light" data-action="export-ledger">Export ledger CSV</button>`)}<div class="metric-grid">${metric('Cash received',money(cashIn),'Recorded customer payments','↗','blue')}${metric('Cash paid',money(cashOut),'Purchases, expenses and refunds','↘','orange')}${metric('Cash balance',money(cashIn-cashOut),'Cash in minus cash out','◈','purple')}${metric('Outstanding sales',money(due),`Supplier balances: ${money(supplierDue)}`,'◷')}</div><section class="panel table-panel section-gap"><div class="panel-head"><div><h3>Transaction ledger</h3><p>Balance is calculated from recorded payments, not unpaid invoice totals.</p></div><div class="table-tools"><input data-search placeholder="Search ledger…" value="${esc(searchText)}"></div></div>${table(['Date','Type','Reference','Customer / supplier','Product / details','Money in','Money out','Running balance','Notes'],tableRows,'No transactions recorded yet.')}</section>`;
 }
-
-
-function calculateProfit(type) {
-
-  const prefix =
-    datePrefix(type);
-
-
-  return sales
-    .filter(sale => {
-
-      if (!prefix) return true;
-
-      return String(
-        sale.deliveryDate || ""
-      ).startsWith(prefix);
-
-    })
-    .reduce(
-      (sum, sale) =>
-        sum + Number(sale.profit || 0),
-      0
-    );
-
-}
-
-
-function calculateSales(type) {
-
-  const prefix =
-    datePrefix(type);
-
-
-  return sales
-    .filter(sale => {
-
-      if (!prefix) return true;
-
-      return String(
-        sale.deliveryDate || ""
-      ).startsWith(prefix);
-
-    })
-    .reduce(
-      (sum, sale) =>
-        sum + Number(sale.total || 0),
-      0
-    );
-
-}
-
 
 function renderReports() {
+  const totalSales = sum(data.sales,'total'), gross = sum(data.sales,'profit'), expenses = sum(data.expenses,'amount'), refunds = sum(data.returns,'amount');
+  const products = data.products.slice().sort((a,b)=>num(b.stock)*num(b.costPrice)-num(a.stock)*num(a.costPrice));
+  const productRows = products.map(p=>tr([esc(p.name),`${num(p.stock)} ${esc(p.unit||'units')}`,money(p.costPrice),money(num(p.stock)*num(p.costPrice))]));
+  return `${pageHead('Reports & insights','Export your records and review sales, margins, expenses and stock value.',`<button class="btn btn-light" data-action="export-all">Export business CSVs</button>`)}<div class="metric-grid">${metric('Sales revenue',money(totalSales),'All recorded sales','↗')}${metric('Gross profit',money(gross),'Sales margin before expenses','◈','blue')}${metric('Operating expenses',money(expenses),'Saved expense records','↘','orange')}${metric('Net estimate',money(gross-expenses-sum(data.returns,'profitLoss')),'Profit − expenses − return margin','▥','purple')}</div><div class="report-grid"><section class="panel"><div class="panel-head"><div><h3>Financial summary</h3><p>Based on the transactions recorded in Poultry Medicine Manager.</p></div></div><div class="report-total">${money(totalSales)}</div><div class="report-sub">Total sales revenue</div><div class="progress-track"><span style="width:${totalSales?Math.min(100,gross/totalSales*100):0}%"></span></div><p class="report-sub">Gross margin: ${totalSales?(gross/totalSales*100).toFixed(1):'0.0'}% of sales · Expenses: ${money(expenses)} · Refunds: ${money(refunds)}</p><div class="notice info">This is a management estimate, not a tax filing or audited accounting statement. Accuracy depends on complete and correct records.</div><button class="btn btn-primary" data-action="export-sales">Export sales CSV</button></section><section class="panel"><div class="panel-head"><div><h3>Sales by month</h3><p>Last six calendar months</p></div></div>${tradingChart()}</section></div><section class="panel table-panel section-gap"><div class="panel-head"><div><h3>Inventory valuation</h3><p>Current stock × recorded purchase cost.</p></div><button class="btn btn-light" data-action="export-products">Export inventory</button></div>${table(['Product','Quantity on hand','Unit cost','Stock value'],productRows,'No inventory to value.')}</section>`;
+}
+function renderSettings() {
+  return `${pageHead('Settings','Update business preferences and export a copy of your records.')}<div class="settings-grid"><section class="panel"><div class="panel-head"><div><h3>Business preferences</h3><p>These settings are saved to this business workspace.</p></div></div><form id="settingsForm" class="settings-form"><label class="field-label full-field">Business name<input class="field-control" name="name" value="${esc(business.name||'')}" required></label><label class="field-label">Business type<select class="field-control" name="type"><option value="general" ${business.type==='general'?'selected':''}>Poultry medicine store</option><option value="medical" ${business.type==='medical'?'selected':''}>Poultry medicine distributor</option><option value="wholesale" ${business.type==='wholesale'?'selected':''}>Poultry wholesale / distribution</option></select></label><label class="field-label">Currency<select class="field-control" name="currency">${[['PKR','PKR — Pakistani Rupee'],['USD','USD — US Dollar'],['GBP','GBP — Pound Sterling'],['EUR','EUR — Euro'],['AED','AED — UAE Dirham'],['SAR','SAR — Saudi Riyal']].map(([v,l])=>`<option value="${v}" ${business.currency===v?'selected':''}>${l}</option>`).join('')}</select></label><label class="field-label full-field">Timezone<input class="field-control" name="timezone" value="${esc(business.timezone||'Asia/Karachi')}" placeholder="Asia/Karachi"></label><div class="full-field"><button class="btn btn-primary" type="submit">Save preferences</button></div></form></section><section class="panel"><div class="panel-head"><div><h3>Account & data</h3><p>Your sign-in and workspace information.</p></div></div><div class="account-card"><span class="account-avatar">${esc((currentUser?.displayName||currentUser?.email||'U').slice(0,1).toUpperCase())}</span><div><b>${esc(currentUser?.displayName||'Poultry Medicine Manager user')}</b><small>${esc(currentUser?.email||'')}</small></div></div><div class="notice info">Each signed-in account has its own business path in Firestore. Keep your Firebase security rules enabled before entering real business data.</div><div class="notice warning">Before using this for critical business records, configure Firebase backups and test your accounting workflow. Client-side code is not a substitute for server-side validation or a professional audit.</div><div class="heading-actions"><button class="btn btn-light" data-action="export-all">Export CSV backups</button><button class="btn btn-light" data-action="logout">Log out</button></div></section></div>`;
+}
+function renderCopilot() {
+  const messages = copilotMessages.map(m=>`<div class="copilot-message ${m.role==='user'?'user-message':'assistant-message'}"><div class="copilot-avatar">${m.role==='user'?'U':'✦'}</div><div class="copilot-bubble"><small>${m.role==='user'?'YOU':'POULTRY MEDICINE MANAGER COPILOT'}</small><div>${esc(m.text).replace(/\n/g,'<br>')}</div></div></div>`).join('');
+  return `${pageHead('AI Business Copilot','Ask questions about your recorded sales, stock, customer dues and expenses. The Copilot can analyse records but will not change them.', '<span class="pill blue">Read-only AI</span>')}<div class="copilot-layout"><section class="copilot-main"><div class="copilot-banner"><div class="copilot-orb">✦</div><div><span class="trade-kicker">YOUR BUSINESS, EXPLAINED</span><h2>Make the next decision with clarity.</h2><p>Get practical answers grounded in your workspace records—not made-up figures.</p></div></div><div id="copilotMessages" class="copilot-messages">${messages||'<div class="copilot-welcome"><div class="copilot-welcome-icon">✦</div><h3>What would you like to know?</h3><p>Choose a prompt or ask a question in your own words.</p><div class="copilot-prompts"><button data-copilot-prompt="Summarise my business performance and profit based on the records available.">📈 Summarise performance</button><button data-copilot-prompt="Which products need restocking and why? Use my current stock levels.">📦 Stock recommendations</button><button data-copilot-prompt="Review my customer outstanding balances and suggest a sensible follow-up order.">👥 Customer dues</button><button data-copilot-prompt="Analyse my expenses and point out practical areas to review.">💸 Expense review</button></div></div>'}</div><form id="copilotForm" class="copilot-form"><textarea id="copilotInput" rows="2" maxlength="1500" placeholder="Ask about sales, profit, stock, expenses…" required></textarea><button id="copilotSend" class="btn btn-primary" type="submit" ${copilotBusy?'disabled':''}>${copilotBusy?'Thinking…':'Ask Copilot'} <span>↑</span></button></form><div class="copilot-disclaimer">AI responses can be wrong. Verify important accounting decisions. Copilot is read-only and never edits your records.</div></section><aside class="copilot-side"><section class="panel"><div class="panel-head"><div><h3>Live workspace snapshot</h3><p>Calculated from currently synced records</p></div><span class="pill blue">LIVE</span></div><div class="copilot-stat"><span>Sales recorded</span><b>${esc(money(sum(data.sales,'total')))}</b></div><div class="copilot-stat"><span>Gross profit recorded</span><b>${esc(money(sum(data.sales,'profit')))}</b></div><div class="copilot-stat"><span>Expenses</span><b>${esc(money(sum(data.expenses,'amount')))}</b></div><div class="copilot-stat"><span>Products at/below reorder level</span><b>${data.products.filter(p=>num(p.stock)<=num(p.reorderLevel)).length}</b></div><div class="copilot-stat"><span>Outstanding sales balance</span><b>${esc(money(data.sales.reduce((n,s)=>n+Math.max(0,num(s.total)-num(s.paid)),0)))}</b></div><div class="notice info">Snapshot uses the records loaded in this signed-in workspace. Missing or incorrect entries affect the analysis.</div></section></aside></div>`;
+}
+function renderCurrent() {
+  if (!currentUser) return;
+  const renderer = { dashboard:renderDashboard, inventory:renderInventory, sales:renderSales, purchases:renderPurchases, ledger:renderLedger, customers:()=>renderContacts('customers'), suppliers:()=>renderContacts('suppliers'), expenses:renderExpenses, deliveries:renderDeliveries, returns:renderReturns, reports:renderReports, settings:renderSettings, copilot:renderCopilot }[activePage];
+  $('pageContent').innerHTML = renderer ? renderer() : renderDashboard();
+}
 
-  $("reportTodayProfit").textContent =
-    money(calculateProfit("today"));
-
-  $("reportMonthProfit").textContent =
-    money(calculateProfit("month"));
-
-  $("reportYearProfit").textContent =
-    money(calculateProfit("year"));
-
-  $("reportTotalProfit").textContent =
-    money(calculateProfit("all"));
-
-
-  const medicineMap = new Map();
-
-
-  sales.forEach(sale => {
-
-    const key =
-      sale.medicineName || "Unknown";
-
-    if (!medicineMap.has(key)) {
-
-      medicineMap.set(key, {
-
-        name: key,
-
-        quantity: 0,
-
-        sales: 0,
-
-        profit: 0
-
-      });
-
-    }
-
-
-    const item =
-      medicineMap.get(key);
-
-
-    item.quantity +=
-      Number(sale.quantity || 0);
-
-    item.sales +=
-      Number(sale.total || 0);
-
-    item.profit +=
-      Number(sale.profit || 0);
-
+const field = (name,label,type='text',opts={}) => ({name,label,type,...opts});
+function makeField(f, value = '') {
+  const v = value ?? ''; const cls = f.wide ? 'wide-field' : '';
+  let input = '';
+  if (f.type === 'select') input = `<select name="${f.name}" ${f.required===false?'':'required'}>${(f.options||[]).map(o=>{const val=typeof o==='string'?o:o.value, lab=typeof o==='string'?o:o.label; return `<option value="${esc(val)}" ${String(v)===String(val)?'selected':''}>${esc(lab)}</option>`;}).join('')}</select>`;
+  else if (f.type === 'textarea') input = `<textarea name="${f.name}" placeholder="${esc(f.placeholder||'')}" ${f.required===false?'':'required'}>${esc(v)}</textarea>`;
+  else input = `<input name="${f.name}" type="${f.type||'text'}" value="${esc(v)}" placeholder="${esc(f.placeholder||'')}" ${f.min!==undefined?`min="${f.min}"`:''} ${f.step?`step="${f.step}"`:''} ${f.required===false?'':'required'} ${f.maxLength?`maxlength="${f.maxLength}"`:''}>`;
+  return `<label class="${cls}">${esc(f.label)}${input}</label>`;
+}
+const schema = {
+ product: [field('name','Product / medicine name','text',{wide:true,placeholder:'Enter product name (required)'}),field('sku','SKU / barcode','text',{required:false}),field('medicineType','Type of medicine','select',{options:['Antibiotic','Vaccine','Vitamin & mineral','Pain relief','Antiparasitic / dewormer','Anticoccidial','Electrolyte','Probiotic / enzyme','Disinfectant','Feed supplement','Respiratory medicine','Digestive medicine','Other']}),field('category','Category / brand','text',{required:false,placeholder:'Optional category or brand'}),field('unit','Unit','select',{options:['piece','pack','box','carton','kg','gram','liter','bottle','strip','tablet','vial','sachet','dose','bag','dozen']}),field('costPrice','Purchase cost','number',{min:0,step:'0.01'}),field('salePrice','Retail sale price','number',{min:0,step:'0.01'}),field('wholesalePrice','Wholesale price','number',{min:0,step:'0.01',required:false}),field('stock','Opening stock','number',{min:0,step:'0.001'}),field('reorderLevel','Low-stock alert at','number',{min:0,step:'0.001'}),field('batch','Batch / lot number','text',{required:false}),field('expiryDate','Expiry date','date',{required:false}),field('notes','Notes','textarea',{required:false,wide:true})],
+ customer: [field('name','Customer name'),field('phone','Phone','tel',{required:false}),field('email','Email','email',{required:false}),field('openingBalance','Opening balance','number',{min:0,step:'0.01'}),field('address','Address','text',{required:false}),field('notes','Notes','textarea',{required:false,wide:true})],
+ supplier: [field('name','Supplier name'),field('phone','Supplier contact number','tel',{placeholder:'e.g. 03XXXXXXXXX'}),field('email','Email','email',{required:false}),field('openingBalance','Opening balance','number',{min:0,step:'0.01'}),field('address','Address','text',{required:false}),field('notes','Notes','textarea',{required:false,wide:true})],
+ expense: [field('title','Expense title'),field('category','Category','select',{options:['Rent','Utilities','Transport','Salaries','Packaging','Maintenance','Tax / fees','Other']}),field('amount','Amount','number',{min:0.01,step:'0.01'}),field('date','Date','date'),field('note','Note','textarea',{required:false,wide:true})],
+ delivery: [field('customerName','Customer name'),field('salesperson','Salesperson / delivered by'),field('details','Items and quantities','textarea',{placeholder:'e.g. Rice 5kg × 2, Oil 1L × 3',wide:true}),field('date','Delivery date','date'),field('status','Delivery status','select',{options:['Pending','Dispatched','Delivered','Partially delivered','Failed']}),field('phone','Customer phone','tel',{required:false}),field('note','Notes','textarea',{required:false,wide:true})]
+};
+let editRecord = null, activeFormType = null, saleCart = [];
+function openDialog(title, type, existing = null) {
+  activeFormType = type; editRecord = existing; $('dialogTitle').textContent = `${existing?'Edit':'Add'} ${title}`; $('dialogError').textContent = ''; $('dialogCancel').textContent = 'Cancel'; $('dialogSave').classList.remove('hidden');
+  if (type === 'product') title = 'stock';
+  if (type === 'sale') { saleCart = [{productId:data.products[0]?.id||'',quantity:1,unitPrice:num(data.products[0]?.salePrice)}]; renderSaleForm(existing); }
+  else if (type === 'purchase') renderPurchaseForm(existing);
+  else if (type === 'return') renderReturnForm();
+  else { const fields = schema[type] || []; $('dialogFields').innerHTML = fields.map(f=>makeField(f, existing ? existing[f.name] : (f.name==='date'?today():f.name==='unit'?'piece':f.name==='reorderLevel'?5:f.name==='status'?'Pending':f.name==='openingBalance'||f.name==='amount'||['stock','costPrice','salePrice','wholesalePrice'].includes(f.name)?0:''))).join(''); }
+  $('dialogSave').textContent = existing ? 'Save changes' : (type==='sale'?'Complete sale':type==='purchase'?'Save purchase':type==='return'?'Record return':'Save record');
+  $('recordDialog').showModal();
+}
+function renderSaleForm() {
+  $('dialogFields').innerHTML = `<label>Customer name<select id="saleCustomer"><option value="">Walk-in customer</option>${data.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><label>Customer contact number<input id="saleCustomerPhone" type="tel" placeholder="Customer phone number"></label><label>Payment method<select id="salePayment"><option>Cash</option><option>Bank transfer</option><option>Card</option><option>Mobile wallet</option><option>Credit</option><option>Mixed</option></select></label><label class="wide-field">Invoice note<input id="saleNote" placeholder="Optional note"></label><div class="wide-field"><div class="panel-head"><div><h3>Items in sale</h3><p>Choose products, quantity and selling price.</p></div></div><div id="saleCartRows">${saleCart.map((x,i)=>cartRow(x,i)).join('')}</div><button type="button" id="addCartRow" class="cart-add">＋ Add another item</button><div class="cart-total"><span>Invoice total</span><strong id="cartTotal">${money(cartTotal())}</strong></div></div><label>Amount paid<input id="salePaid" type="number" min="0" step="0.01" value="${cartTotal()}" required></label><label>Payment status<select id="salePayStatus"><option value="auto">Automatic from paid amount</option><option value="paid">Mark fully paid</option></select></label>`;
+  $('saleCustomer').addEventListener('change',()=>{const c=data.customers.find(x=>x.id===$('saleCustomer').value);$('saleCustomerPhone').value=c?.phone||'';});
+  $('addCartRow').addEventListener('click',()=>{saleCart.push({productId:data.products[0]?.id||'',quantity:1,unitPrice:num(data.products[0]?.salePrice)}); updateCartRows();});
+  $('saleCartRows').addEventListener('input', cartChange); $('saleCartRows').addEventListener('change', cartChange);
+  $('salePaid').addEventListener('input',()=>{});
+  updateCartTotal();
+}
+function cartRow(item,i) { return `<div class="cart-row" data-cart-index="${i}"><select data-cart-field="productId"><option value="">Select product</option>${data.products.map(p=>`<option value="${p.id}" ${p.id===item.productId?'selected':''}>${esc(p.name)} (${num(p.stock)} available)</option>`).join('')}</select><input data-cart-field="quantity" type="number" min="0.001" step="0.001" value="${num(item.quantity)||1}" title="Quantity"><input data-cart-field="unitPrice" type="number" min="0" step="0.01" value="${num(item.unitPrice)}" title="Unit price"><button type="button" data-remove-cart="${i}" aria-label="Remove item">×</button></div>`; }
+function cartChange(e) {
+  const row=e.target.closest('[data-cart-index]'); if(!row)return; const i=Number(row.dataset.cartIndex), f=e.target.dataset.cartField; if(!f)return;
+  if(f==='productId'){const p=data.products.find(x=>x.id===e.target.value);saleCart[i].productId=e.target.value;saleCart[i].unitPrice=num(p?.salePrice);updateCartRows();}
+  else {saleCart[i][f]=num(e.target.value);updateCartTotal();}
+}
+function updateCartRows() { const el=$('saleCartRows'); if(el){el.innerHTML=saleCart.map((x,i)=>cartRow(x,i)).join('');} updateCartTotal(); }
+function updateCartTotal() { const total=cartTotal(); if($('cartTotal'))$('cartTotal').textContent=money(total); if($('salePaid') && !$('salePaid').dataset.touched) $('salePaid').value=total.toFixed(2); }
+function cartTotal() { return saleCart.reduce((n,x)=>n+num(x.quantity)*num(x.unitPrice),0); }
+function renderPurchaseForm(existing=null) {
+  $('dialogFields').innerHTML = `<label class="wide-field">Product<select name="productId" required>${data.products.map(p=>`<option value="${p.id}">${esc(p.name)} — current stock ${num(p.stock)}</option>`).join('')}</select></label><label>Quantity received<input name="quantity" type="number" min="0.001" step="0.001" value="1" required></label><label>Unit purchase cost<input name="unitPrice" type="number" min="0" step="0.01" value="0" required></label><label>Supplier<select name="supplierId" id="purchaseSupplier"><option value="">Select supplier</option>${data.suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label><label>Supplier contact number<input name="supplierPhone" id="purchaseSupplierPhone" type="tel" placeholder="Supplier phone number" readonly></label><label>Purchase date<input name="date" type="date" value="${today()}" required></label><label>Reference / bill no.<input name="reference" placeholder="Optional bill number"></label><label>Amount paid<input name="paid" type="number" min="0" step="0.01" value="0"></label><label>Payment status<select name="paymentStatus"><option>Unpaid</option><option>Partial</option><option>Paid</option></select></label><label class="wide-field">Notes<textarea name="note" placeholder="Optional"></textarea></label>`;
+  const productSelect=$('dialogFields').querySelector('[name="productId"]'); const cost=$('dialogFields').querySelector('[name="unitPrice"]'); const supplierSelect=$('purchaseSupplier'); const supplierPhone=$('purchaseSupplierPhone');
+  const syncSupplierPhone=()=>{const supplier=data.suppliers.find(x=>x.id===supplierSelect?.value);if(supplierPhone)supplierPhone.value=supplier?.phone||'';}; supplierSelect?.addEventListener('change',syncSupplierPhone);
+  const quantity=$('dialogFields').querySelector('[name="quantity"]'); const paid=$('dialogFields').querySelector('[name="paid"]'); const status=$('dialogFields').querySelector('[name="paymentStatus"]');
+  const syncPaymentStatus=()=>{const total=num(quantity?.value)*num(cost?.value),received=num(paid?.value);if(status)status.value=received>=total&&total>0?'Paid':received>0?'Partial':'Unpaid';};
+  productSelect?.addEventListener('change',()=>{const p=data.products.find(x=>x.id===productSelect.value);cost.value=String(num(p?.costPrice));syncPaymentStatus();});
+  [quantity,cost,paid].forEach(el=>el?.addEventListener('input',syncPaymentStatus));
+  if(data.products[0])cost.value=String(num(data.products[0].costPrice));syncPaymentStatus();
+}
+function renderReturnForm() {
+  const sales=data.sales.filter(s=>(s.items||[]).length);
+  $('dialogFields').innerHTML = `<label class="wide-field">Original invoice<select id="returnSale" required><option value="">Choose invoice</option>${sales.map(s=>`<option value="${s.id}">${esc(s.invoiceNo)} — ${esc(s.customerName||'Walk-in')} — ${money(s.total)}</option>`).join('')}</select></label><div id="returnItems" class="wide-field"><p class="muted-text">Choose an invoice to select returned items.</p></div><label>Refund amount<input id="returnAmount" type="number" min="0" step="0.01" value="0" required></label><label>Refund method<select id="returnMethod"><option>Cash</option><option>Bank transfer</option><option>Store credit</option><option>Not refunded yet</option></select></label><label class="wide-field">Reason<input id="returnReason" placeholder="Damaged, expired, customer return…" required></label>`;
+  $('returnSale').addEventListener('change',()=>{const s=data.sales.find(x=>x.id===$('returnSale').value);$('returnItems').innerHTML=s?`<div class="notice info">Select the quantity being returned. Do not enter more than was sold.</div>${s.items.map((it,i)=>`<label class="field-label">${esc(it.name)} — sold ${num(it.quantity)}<input class="field-control" type="number" min="0" max="${num(it.quantity)}" step="0.001" value="0" data-return-index="${i}"></label>`).join('')}`:'<p class="muted-text">Choose an invoice to select returned items.</p>';});
+}
+function formValues(form) { const out={}; new FormData(form).forEach((v,k)=>{out[k]=String(v).trim();}); return out; }
+function validateNonnegative(obj, keys) { for(const k of keys) if(obj[k]!==undefined && (!Number.isFinite(Number(obj[k])) || Number(obj[k])<0)) throw new Error(`${k} must be zero or greater.`); }
+async function saveGeneric(type, form) {
+  const values=formValues(form); const numeric={openingBalance:1,amount:1,stock:1,reorderLevel:1,costPrice:1,salePrice:1,wholesalePrice:1};
+  Object.keys(values).forEach(k=>{if(numeric[k])values[k]=Number(values[k]||0);});
+  if(type==='product') { validateNonnegative(values,['stock','reorderLevel','costPrice','salePrice','wholesalePrice']); if(!values.name?.trim())throw new Error('Enter the product / medicine name.'); if(!values.medicineType)throw new Error('Select a type of medicine.'); }
+  if(type==='expense' && num(values.amount)<=0)throw new Error('Expense amount must be greater than zero.');
+  const collectionName=type==='customer'?'customers':type==='supplier'?'suppliers':type==='delivery'?'deliveries':type==='expense'?'expenses':'products';
+  if(editRecord) await update(collectionName,editRecord.id,values); else await add(collectionName,values);
+  if(type==='product' && !editRecord && num(values.stock)>0) { /* opening stock is part of the product record */ }
+  toast(`${type[0].toUpperCase()+type.slice(1)} ${editRecord?'updated':'saved'} successfully.`); closeDialog();
+}
+async function saveSale() {
+  requireConfig(); const selectedCustomer=data.customers.find(c=>c.id===$('saleCustomer').value); const customerName=selectedCustomer?.name || 'Walk-in customer', customerPhone=$('saleCustomerPhone').value.trim() || selectedCustomer?.phone || '', customerId=selectedCustomer?.id || '', paymentMethod=$('salePayment').value, paid=num($('salePaid').value), total=cartTotal();
+  const items=saleCart.map(item=>{if(!item.productId || num(item.quantity)<=0 || num(item.unitPrice)<0)throw new Error('Choose each product and enter a valid quantity and price.');const p=data.products.find(y=>y.id===item.productId);if(!p)throw new Error('A selected product no longer exists.');return {productId:p.id,name:p.name,quantity:num(item.quantity),unitPrice:num(item.unitPrice),costPrice:num(p.costPrice)};});
+  if(!items.length)throw new Error('Add at least one product to the sale.'); if(paid<0 || paid>total)throw new Error('Amount paid must be between zero and the invoice total.');
+  const paidFinal=$('salePayStatus').value==='paid'?total:paid;
+  const requiredByProduct=new Map();items.forEach(i=>requiredByProduct.set(i.productId,(requiredByProduct.get(i.productId)||0)+i.quantity));
+  const sale={invoiceNo:invoiceNo(),customerId,customerName,customerPhone,paymentMethod,note:$('saleNote').value.trim(),total,paid:paidFinal,profit:items.reduce((n,i)=>n+i.quantity*(i.unitPrice-i.costPrice),0),items,date:today(),createdAt:new Date().toISOString()};
+  await runTransaction(db,async tx=>{
+    const productIds=[...requiredByProduct.keys()]; const refs=productIds.map(id=>docRef('products',id)); const snaps=[]; for(const r of refs) snaps.push(await tx.get(r));
+    snaps.forEach((snap,i)=>{const id=productIds[i], product=data.products.find(p=>p.id===id);if(!snap.exists())throw new Error(`Product not found: ${product?.name||id}`);const stock=num(snap.data().stock), needed=requiredByProduct.get(id);if(stock<needed)throw new Error(`Insufficient stock for ${product?.name||'product'}. Available: ${stock}, required: ${needed}.`);});
+    const saleRef=doc(col('sales')); tx.set(saleRef,{...sale,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    snaps.forEach((snap,i)=>tx.update(refs[i],{stock:num(snap.data().stock)-requiredByProduct.get(productIds[i]),updatedAt:serverTimestamp()}));
+    if(paidFinal<total && customerName!=='Walk-in customer') { const ledgerRef=doc(col('ledger')); tx.set(ledgerRef,{type:'customer_due',customerName,saleId:saleRef.id,amount:total-paidFinal,note:`Due from invoice ${sale.invoiceNo}`,createdAt:serverTimestamp(),updatedAt:serverTimestamp()}); }
   });
-
-
-  const topMedicines =
-    [...medicineMap.values()]
-      .sort(
-        (a, b) =>
-          b.quantity - a.quantity
-      )
-      .slice(0, 5);
-
-
-  $("topMedicines").innerHTML =
-
-    topMedicines.length
-
-      ? topMedicines.map(item => `
-
-          <div class="alert-item">
-
-            <div>
-              <strong>
-                ${escapeHTML(item.name)}
-              </strong>
-
-              <small>
-                ${item.quantity} units sold
-              </small>
-            </div>
-
-            <div>
-              <strong>
-                ${money(item.profit)}
-              </strong>
-
-              <small>
-                Profit
-              </small>
-            </div>
-
-          </div>
-
-        `).join("")
-
-      : `
-        <div class="empty-state">
-          No sales yet.
-        </div>
-      `;
-
-
-  const topSalesmen =
-    getSalesmen()
-      .sort(
-        (a, b) =>
-          b.sales - a.sales
-      )
-      .slice(0, 5);
-
-
-  $("topSalesmen").innerHTML =
-
-    topSalesmen.length
-
-      ? topSalesmen.map(person => `
-
-          <div class="alert-item">
-
-            <div>
-              <strong>
-                ${escapeHTML(person.name)}
-              </strong>
-
-              <small>
-                ${person.deliveries} deliveries
-              </small>
-            </div>
-
-            <div>
-              <strong>
-                ${money(person.sales)}
-              </strong>
-
-              <small>
-                Sales
-              </small>
-            </div>
-
-          </div>
-
-        `).join("")
-
-      : `
-        <div class="empty-state">
-          No salesman data yet.
-        </div>
-      `;
-
+  toast(`Sale ${sale.invoiceNo} saved; stock updated.`); closeDialog();
 }
-
-
-/* =====================================================
-   DASHBOARD
-===================================================== */
-
-function renderDashboard() {
-
-  const low =
-    inventory.filter(
-      x =>
-        getInventoryStatus(x) === "low"
-    );
-
-  const expired =
-    inventory.filter(
-      x =>
-        getInventoryStatus(x) === "expired"
-    );
-
-  const soon =
-    inventory.filter(
-      x =>
-        getInventoryStatus(x) === "soon"
-    );
-
-  const out =
-    inventory.filter(
-      x =>
-        getInventoryStatus(x) === "out"
-    );
-
-
-  $("totalStockItems").textContent =
-    inventory.length;
-
-  $("lowStockCount").textContent =
-    low.length;
-
-  $("expiredCount").textContent =
-    expired.length;
-
-  $("expirySoonCount").textContent =
-    soon.length;
-
-  $("outStockCount").textContent =
-    out.length;
-
-
-  const totalSales =
-    sales.reduce(
-      (sum, sale) =>
-        sum + Number(sale.total || 0),
-      0
-    );
-
-
-  const totalProfit =
-    sales.reduce(
-      (sum, sale) =>
-        sum + Number(sale.profit || 0),
-      0
-    );
-
-
-  const inventoryValue =
-    inventory.reduce(
-      (sum, item) =>
-        sum +
-        Number(item.quantity || 0) *
-        Number(item.buyPrice || 0),
-      0
-    );
-
-
-  $("totalSales").textContent =
-    money(totalSales);
-
-  $("totalProfit").textContent =
-    money(totalProfit);
-
-  $("inventoryValue").textContent =
-    money(inventoryValue);
-
-
-  $("todaySales").textContent =
-    money(calculateSales("today"));
-
-  $("todayProfit").textContent =
-    money(calculateProfit("today"));
-
-  $("monthSales").textContent =
-    money(calculateSales("month"));
-
-  $("yearSales").textContent =
-    money(calculateSales("year"));
-
-
-  $("dashboardAlerts").innerHTML =
-
-    low.length
-
-      ? low.slice(0, 5).map(item => `
-
-          <div class="alert-item">
-
-            <div>
-              <strong>
-                ${escapeHTML(item.name)}
-              </strong>
-
-              <small>
-                ${item.quantity} ${escapeHTML(item.unit || "")}
-                remaining
-              </small>
-            </div>
-
-            <span class="alert-status low">
-              LOW
-            </span>
-
-          </div>
-
-        `).join("")
-
-      : `
-        <div class="empty-state">
-          <div class="empty-icon">✅</div>
-          <strong>No low stock</strong>
-          <span>Everything looks good.</span>
-        </div>
-      `;
-
-
-  $("dashboardExpiry").innerHTML =
-
-    [...expired, ...soon]
-      .slice(0, 5)
-      .map(item => {
-
-        const status =
-          getInventoryStatus(item);
-
-        const days =
-          daysUntil(item.expiryDate);
-
-
-        return `
-
-          <div class="alert-item">
-
-            <div>
-              <strong>
-                ${escapeHTML(item.name)}
-              </strong>
-
-              <small>
-                Expiry: ${escapeHTML(item.expiryDate)}
-              </small>
-            </div>
-
-            <span class="alert-status ${status}">
-              ${
-                status === "expired"
-                  ? "EXPIRED"
-                  : `${days} DAYS`
-              }
-            </span>
-
-          </div>
-
-        `;
-
-      })
-      .join("") ||
-
-    `
-      <div class="empty-state">
-        <div class="empty-icon">✅</div>
-        <strong>No expiry alerts</strong>
-      </div>
-    `;
-
-
-  renderRecentSales();
-
+async function savePurchase(form) {
+  requireConfig(); const v=formValues(form), product=data.products.find(p=>p.id===v.productId), quantity=num(v.quantity), unitPrice=num(v.unitPrice), paid=num(v.paid);
+  const total=quantity*unitPrice;
+  if(!product)throw new Error('Choose a product first.'); if(quantity<=0||unitPrice<0||paid<0||paid>total)throw new Error('Enter a valid quantity, cost and payment (paid amount cannot exceed purchase total).');
+  const paymentStatus=paid>=total?'Paid':paid>0?'Partial':'Unpaid';
+  const selectedSupplier=data.suppliers.find(x=>x.id===v.supplierId); const purchase={reference:v.reference||`PUR-${Date.now().toString().slice(-6)}`,supplierId:selectedSupplier?.id||'',supplierName:selectedSupplier?.name||'Supplier',supplierPhone:v.supplierPhone||selectedSupplier?.phone||'',date:v.date||today(),total,paid,paymentStatus,note:v.note||'',items:[{productId:product.id,name:product.name,quantity,unitPrice,costPrice:unitPrice}]};
+  await runTransaction(db,async tx=>{const pr=docRef('products',product.id),snap=await tx.get(pr);if(!snap.exists())throw new Error('Product no longer exists.');const purchaseRef=doc(col('purchases'));tx.set(purchaseRef,{...purchase,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});tx.update(pr,{stock:num(snap.data().stock)+quantity,costPrice:unitPrice,updatedAt:serverTimestamp()});});
+  toast('Purchase saved and inventory updated.');closeDialog();
 }
-
-
-function renderRecentSales() {
-
-  const list =
-    [...sales]
-      .sort(
-        (a, b) =>
-          Number(b.createdAt || 0) -
-          Number(a.createdAt || 0)
-      )
-      .slice(0, 5);
-
-
-  if (!list.length) {
-
-    $("recentSalesTable").innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">💰</div>
-        <strong>No sales yet</strong>
-      </div>
-    `;
-
-    return;
-
-  }
-
-
-  $("recentSalesTable").innerHTML = `
-
-    <table class="data-table">
-
-      <thead>
-
-        <tr>
-          <th>Invoice</th>
-          <th>Medicine</th>
-          <th>Customer</th>
-          <th>Date</th>
-          <th>Total</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${list.map(sale => `
-
-          <tr>
-
-            <td>
-              ${escapeHTML(sale.invoiceNumber)}
-            </td>
-
-            <td>
-              ${escapeHTML(sale.medicineName)}
-            </td>
-
-            <td>
-              ${escapeHTML(sale.customerName)}
-            </td>
-
-            <td>
-              ${escapeHTML(sale.deliveryDate)}
-            </td>
-
-            <td>
-              <strong>
-                ${money(sale.total)}
-              </strong>
-            </td>
-
-          </tr>
-
-        `).join("")}
-
-      </tbody>
-
-    </table>
-  `;
-
-}
-
-
-/* =====================================================
-   INVOICE
-===================================================== */
-
-/*
-   IMPORTANT:
-   Customer invoice mein:
-   - BUY PRICE nahi
-   - PROFIT nahi
-   - COST nahi
-*/
-
-function invoiceFromSale(sale) {
-
-  return {
-
-    invoiceNumber:
-      sale.invoiceNumber,
-
-    medicineName:
-      sale.medicineName,
-
-    batchNumber:
-      sale.batchNumber,
-
-    customerName:
-      sale.customerName,
-
-    customerPhone:
-      sale.customerPhone,
-
-    salesmanName:
-      sale.salesmanName,
-
-    salesmanPhone:
-      sale.salesmanPhone,
-
-    quantity:
-      sale.quantity,
-
-    unit:
-      sale.unit,
-
-    salePrice:
-      sale.salePrice,
-
-    subtotal:
-      sale.subtotal,
-
-    discount:
-      sale.discount,
-
-    total:
-      sale.total,
-
-    paidAmount:
-      sale.paidAmount,
-
-    remainingAmount:
-      sale.remainingAmount,
-
-    deliveryDate:
-      sale.deliveryDate
-
-  };
-
-}
-
-
-function renderInvoice(invoice) {
-
-  const business =
-    $("settingsBusiness").textContent ||
-    "Poultry Medicine Manager";
-
-
-  $("invoiceContent").innerHTML = `
-
-    <div class="invoice-header">
-
-      <h1>
-        ${escapeHTML(business)}
-      </h1>
-
-      <p>
-        Poultry Medicine Invoice
-      </p>
-
-    </div>
-
-
-    <div class="invoice-info">
-
-      <div>
-        <strong>Invoice #</strong>
-        ${escapeHTML(invoice.invoiceNumber)}
-      </div>
-
-      <div>
-        <strong>Date</strong>
-        ${escapeHTML(invoice.deliveryDate)}
-      </div>
-
-      <div>
-        <strong>Customer</strong>
-        ${escapeHTML(invoice.customerName)}
-      </div>
-
-      <div>
-        <strong>Customer Phone</strong>
-        ${escapeHTML(invoice.customerPhone || "-")}
-      </div>
-
-      <div>
-        <strong>Salesman</strong>
-        ${escapeHTML(invoice.salesmanName || "-")}
-      </div>
-
-      <div>
-        <strong>Salesman Phone</strong>
-        ${escapeHTML(invoice.salesmanPhone || "-")}
-      </div>
-
-    </div>
-
-
-    <table class="invoice-table">
-
-      <thead>
-
-        <tr>
-          <th>Medicine</th>
-          <th>Batch</th>
-          <th>Qty</th>
-          <th>Rate</th>
-          <th>Total</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        <tr>
-
-          <td>
-            ${escapeHTML(invoice.medicineName)}
-          </td>
-
-          <td>
-            ${escapeHTML(invoice.batchNumber)}
-          </td>
-
-          <td>
-            ${invoice.quantity}
-            ${escapeHTML(invoice.unit || "")}
-          </td>
-
-          <td>
-            ${money(invoice.salePrice)}
-          </td>
-
-          <td>
-            ${money(invoice.subtotal)}
-          </td>
-
-        </tr>
-
-      </tbody>
-
-    </table>
-
-
-    <div class="invoice-total">
-
-      <div>
-        <span>Subtotal</span>
-        <strong>${money(invoice.subtotal)}</strong>
-      </div>
-
-      <div>
-        <span>Discount</span>
-        <strong>${money(invoice.discount)}</strong>
-      </div>
-
-      <div class="final">
-        <span>Total</span>
-        <strong>${money(invoice.total)}</strong>
-      </div>
-
-      <div>
-        <span>Paid</span>
-        <strong>${money(invoice.paidAmount)}</strong>
-      </div>
-
-      <div>
-        <span>Remaining</span>
-        <strong>${money(invoice.remainingAmount)}</strong>
-      </div>
-
-    </div>
-
-
-    <div class="invoice-footer">
-
-      Thank you for your business.
-
-    </div>
-
-  `;
-
-}
-
-
-$("printInvoiceBtn").addEventListener(
-  "click",
-  () => window.print()
-);
-
-
-/* =====================================================
-   EXPORT CSV
-===================================================== */
-
-$("exportBtn").addEventListener(
-  "click",
-  () => {
-
-    if (!sales.length) {
-
-      showToast(
-        "Export karne ke liye sales nahi hain.",
-        "warning"
-      );
-
-      return;
-
+async function saveReturn() {
+  requireConfig(); const sale=data.sales.find(s=>s.id===$('returnSale').value); if(!sale)throw new Error('Choose the original invoice.');
+  const inputs=[...document.querySelectorAll('[data-return-index]')]; const items=inputs.map(input=>{const original=sale.items[Number(input.dataset.returnIndex)];return {...original,quantity:num(input.value)};}).filter(i=>i.quantity>0);
+  if(!items.length)throw new Error('Enter at least one returned quantity.');
+  const priorReturned = new Map(); data.returns.filter(r=>r.originalSaleId===sale.id).flatMap(r=>r.items||[]).forEach(i=>priorReturned.set(i.productId,(priorReturned.get(i.productId)||0)+num(i.quantity)));
+  const soldByProduct = new Map(); sale.items.forEach(i=>soldByProduct.set(i.productId,(soldByProduct.get(i.productId)||0)+num(i.quantity)));
+  const returnByProduct = new Map(); items.forEach(i=>returnByProduct.set(i.productId,(returnByProduct.get(i.productId)||0)+num(i.quantity)));
+  for (const [productId, quantity] of returnByProduct) { const remaining=num(soldByProduct.get(productId))-num(priorReturned.get(productId)); if(quantity>remaining)throw new Error(`Return quantity for ${productName(productId)} exceeds the remaining quantity on the invoice (${remaining}).`); }
+  const amount=num($('returnAmount').value); const returnedValue=items.reduce((n,i)=>n+i.quantity*num(i.unitPrice),0); if(amount<0||amount>returnedValue)throw new Error(`Refund must be between zero and ${money(returnedValue)} for the selected quantities.`); const profitLoss=items.reduce((n,i)=>n+i.quantity*(num(i.unitPrice)-num(i.costPrice)),0);
+  await runTransaction(db,async tx=>{
+    const productIds=[...returnByProduct.keys()];
+    const refs=productIds.map(id=>docRef('products',id));
+    const snaps=[];
+    for(const r of refs) snaps.push(await tx.get(r));
+    // Re-check prior returns inside the transaction so two devices cannot over-return the same invoice.
+    const priorQuery=query(col('returns'),where('originalSaleId','==',sale.id));
+    const priorSnap=await tx.get(priorQuery);
+    const alreadyReturned=new Map();
+    priorSnap.docs.forEach(d=>(d.data().items||[]).forEach(i=>alreadyReturned.set(i.productId,(alreadyReturned.get(i.productId)||0)+num(i.quantity))));
+    const soldByProduct=new Map();
+    (sale.items||[]).forEach(i=>soldByProduct.set(i.productId,(soldByProduct.get(i.productId)||0)+num(i.quantity)));
+    for(const [productId,quantity] of returnByProduct){
+      const remaining=num(soldByProduct.get(productId))-num(alreadyReturned.get(productId));
+      if(quantity>remaining) throw new Error(`Return quantity for ${productName(productId)} exceeds the remaining quantity on the invoice (${remaining}).`);
     }
+    snaps.forEach((s,i)=>{if(!s.exists())throw new Error(`Product not found: ${productName(productIds[i])}`);});
+    const retRef=doc(col('returns'));
+    tx.set(retRef,{invoiceNo:sale.invoiceNo,originalSaleId:sale.id,customerName:sale.customerName,items,amount,method:$('returnMethod').value,reason:$('returnReason').value.trim(),profitLoss,date:today(),createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    snaps.forEach((s,i)=>tx.update(refs[i],{stock:num(s.data().stock)+returnByProduct.get(productIds[i]),updatedAt:serverTimestamp()}));
+  });
+  toast('Return recorded and returned stock added back.');closeDialog();
+}
+function closeDialog() { if($('recordDialog').open)$('recordDialog').close(); editRecord=null;activeFormType=null; }
+function findRecord(type,id) { const name=type==='product'?'products':type==='customer'?'customers':type==='supplier'?'suppliers':type==='expense'?'expenses':type==='delivery'?'deliveries':type;return data[name]?.find(x=>x.id===id); }
+async function deleteRecord(type,id) {
+  const map={product:'products',customer:'customers',supplier:'suppliers',expense:'expenses',delivery:'deliveries'}; const name=map[type]; if(!name)return;
+  const record=findRecord(type,id); if(type==='product' && (num(record?.stock)!==0 || data.sales.some(s=>(s.items||[]).some(i=>i.productId===id)))) { if(!confirm('This product has stock or transaction history. Deleting it can make reports harder to audit. Delete anyway?'))return; }
+  if(!confirm(`Delete this ${type} record? This action cannot be undone.`))return;
+  try { await remove(name,id);toast(`${type[0].toUpperCase()+type.slice(1)} deleted.`); } catch(e){toast(e.message||'Delete failed.',true);}
+}
+function downloadCsv(filename, rows) {
+  const escapeCsv=v=>`"${String(v??'').replaceAll('"','""')}"`;const csv=rows.map(row=>row.map(escapeCsv).join(',')).join('\r\n');const blob=new Blob(['\ufeff',csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function exportCollection(name, fields, filename) { const rows=[fields.map(x=>x[1]),...data[name].map(item=>fields.map(([key])=>Array.isArray(item[key])?item[key].map(i=>`${i.name} x ${i.quantity}`).join('; '):item[key]??''))];downloadCsv(filename,rows);toast('CSV export started.'); }
+function exportCollectionFromRows(filename,headers,rows){downloadCsv(filename,[headers,...rows]);toast('Ledger CSV export started.');}
+function exportAll() { exportCollection('products',[['name','Product'],['sku','SKU'],['medicineType','Medicine type'],['category','Category'],['costPrice','Cost'],['salePrice','Sale price'],['stock','Stock'],['expiryDate','Expiry']], 'poultry-medicine-inventory.csv'); setTimeout(()=>exportCollection('sales',[['invoiceNo','Invoice'],['customerName','Customer'],['date','Date'],['total','Total'],['paid','Paid'],['profit','Profit']], 'poultry-medicine-sales.csv'),400);setTimeout(()=>exportCollection('expenses',[['title','Expense'],['category','Category'],['date','Date'],['amount','Amount']], 'poultry-medicine-expenses.csv'),800); }
+function viewSale(id) { const s=data.sales.find(x=>x.id===id);if(!s)return; const rows=(s.items||[]).map(i=>tr([esc(i.name),num(i.quantity),money(i.unitPrice),money(i.quantity*i.unitPrice),money(i.quantity*(i.unitPrice-i.costPrice))]));$('dialogTitle').textContent=`Invoice ${s.invoiceNo}`;$('dialogFields').innerHTML=`<div class="notice info wide-field">Customer: ${esc(s.customerName||'Walk-in')} · Contact: ${esc(s.customerPhone||'—')} · Date: ${esc(dateOf(s))} · Payment: ${esc(s.paymentMethod||'Cash')}</div><div class="wide-field">${table(['Product','Qty','Unit price','Line total','Margin'],rows)}</div><div class="cart-total wide-field"><span>Total · Paid · Due</span><strong>${money(s.total)} · ${money(s.paid)} · ${money(Math.max(0,num(s.total)-num(s.paid)))}</strong></div><p class="wide-field muted-text">${esc(s.note||'No invoice note.')}</p>`;$('dialogSave').classList.add('hidden');$('dialogCancel').textContent='Close';$('recordDialog').showModal();activeFormType='view'; }
 
-
-    const headers = [
-      "Invoice",
-      "Date",
-      "Medicine",
-      "Batch",
-      "Customer",
-      "Customer Phone",
-      "Salesman",
-      "Salesman Phone",
-      "Quantity",
-      "Sale Price",
-      "Discount",
-      "Total",
-      "Profit",
-      "Payment Status"
-    ];
-
-
-    const rows =
-      sales.map(sale => [
-
-        sale.invoiceNumber,
-        sale.deliveryDate,
-        sale.medicineName,
-        sale.batchNumber,
-        sale.customerName,
-        sale.customerPhone,
-        sale.salesmanName,
-        sale.salesmanPhone,
-        sale.quantity,
-        sale.salePrice,
-        sale.discount,
-        sale.total,
-        sale.profit,
-        sale.paymentStatus
-
-      ]);
-
-
-    const csv = [
-
-      headers,
-
-      ...rows
-
-    ]
-      .map(row =>
-        row.map(value =>
-          `"${String(value ?? "")
-            .replaceAll('"', '""')}"`
-        ).join(",")
-      )
-      .join("\n");
-
-
-    const blob =
-      new Blob(
-        [csv],
-        { type: "text/csv;charset=utf-8;" }
-      );
-
-
-    const url =
-      URL.createObjectURL(blob);
-
-
-    const a =
-      document.createElement("a");
-
-    a.href = url;
-
-    a.download =
-      `poultry-sales-${todayString()}.csv`;
-
-    a.click();
-
-    URL.revokeObjectURL(url);
-
-    showToast("CSV exported.");
-
-  }
-);
-
-
-/* =====================================================
-   LOGOUT
-===================================================== */
-
-async function logout() {
-
+$('authForm').addEventListener('submit',async e=>{
+  e.preventDefault();setAuthError('');setAuthBusy(true);
+  try { requireConfig(); const email=$('email').value.trim(), password=$('password').value;
+    if(authMode==='signup') { const name=$('fullName').value.trim(), businessName=$('businessName').value.trim(); if(!name||!businessName)throw new Error('Enter your name and business name.');const result=await createUserWithEmailAndPassword(auth,email,password);await updateProfile(result.user,{displayName:name});await ensureBusiness(result.user,{name:businessName,type:$('businessType').value}); }
+    else await signInWithEmailAndPassword(auth,email,password);
+  } catch(err) { setAuthError(err.message||'Authentication failed.'); } finally { setAuthBusy(false); }
+});
+$('switchMode').addEventListener('click',()=>authModeSet(authMode==='login'?'signup':'login'));
+$('forgotBtn').addEventListener('click',async()=>{try{requireConfig();const email=$('email').value.trim();if(!email)throw new Error('Enter your email address first.');await sendPasswordResetEmail(auth,email);toast('If that account exists, a password reset email has been sent.');}catch(e){setAuthError(e.message);}});
+$('googleBtn').addEventListener('click',async()=>{try{requireConfig();setAuthError('');$('googleBtn').disabled=true;const result=await signInWithPopup(auth,new GoogleAuthProvider());await ensureBusiness(result.user);}catch(e){setAuthError(e.message||'Google sign-in failed.');}finally{$('googleBtn').disabled=false;}});
+$('logoutBtn').addEventListener('click',async()=>{try{stopWatchers();await signOut(auth);toast('Signed out.');}catch(e){toast(e.message,true);}});
+$('menuBtn').addEventListener('click',()=>{$('sidebar').classList.add('open');$('scrim').classList.remove('hidden');});$('closeMenu').addEventListener('click',()=>{$('sidebar').classList.remove('open');$('scrim').classList.add('hidden');});$('scrim').addEventListener('click',()=>{$('sidebar').classList.remove('open');$('scrim').classList.add('hidden');});
+$('mainNav').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b)navigate(b.dataset.page);});
+$('globalSearch').addEventListener('input',e=>{searchText=e.target.value;renderCurrent();const local=$('pageContent').querySelector('[data-search]');if(local){local.value=searchText;local.focus();local.setSelectionRange(searchText.length,searchText.length);}});
+$('pageContent').addEventListener('input',e=>{if(e.target.matches('[data-search]')){searchText=e.target.value;const pos=e.target.selectionStart;renderCurrent();const next=$('pageContent').querySelector('[data-search]');if(next){next.focus();next.setSelectionRange(pos,pos);}}});
+$('pageContent').addEventListener('click',async e=>{
+  const rangeBtn=e.target.closest('[data-chart-range]'); if(rangeBtn){chartRange=Number(rangeBtn.dataset.chartRange)||30;renderCurrent();return;}
+  const promptBtn=e.target.closest('[data-copilot-prompt]'); if(promptBtn){const input=$('copilotInput');if(input){input.value=promptBtn.dataset.copilotPrompt;input.focus();}return;}
+  const pageLink=e.target.closest('[data-page-link]');if(pageLink){navigate(pageLink.dataset.pageLink);return;}
+  const b=e.target.closest('[data-action]');if(!b)return;const action=b.dataset.action;
   try {
-
-    await signOut(auth);
-
-    showToast("Logged out successfully.");
-
-  } catch (error) {
-
-    showToast(
-      "Logout failed.",
-      "error"
-    );
-
-  }
-
-}
-
-
-$("logoutBtn").addEventListener(
-  "click",
-  logout
-);
-
-$("dropdownLogout").addEventListener(
-  "click",
-  logout
-);
-
-$("settingsLogout").addEventListener(
-  "click",
-  logout
-);
-
-
-/* =====================================================
-   MODAL CLOSE
-===================================================== */
-
-document.querySelectorAll("[data-close]").forEach(button => {
-
-  button.addEventListener("click", () => {
-
-    hideModal(
-      button.dataset.close
-    );
-
-  });
-
+    if(action==='new-product')openDialog('product','product'); else if(action==='new-sale') {if(!data.products.length)throw new Error('Add at least one product before recording a sale.');openDialog('sale','sale');}
+    else if(action==='new-purchase'){if(!data.products.length)throw new Error('Add at least one product before recording a purchase.');openDialog('purchase','purchase');}
+    else if(action==='new-customer')openDialog('customer','customer');else if(action==='new-supplier')openDialog('supplier','supplier');else if(action==='new-expense')openDialog('expense','expense');else if(action==='new-delivery')openDialog('delivery','delivery');else if(action==='new-return'){if(!data.sales.length)throw new Error('Record a sale before recording a return.');openDialog('return','return');}
+    else if(action==='edit'){const type=b.dataset.type, record=findRecord(type,b.dataset.id);if(record)openDialog(type,type,record);}
+    else if(action==='delete')await deleteRecord(b.dataset.type,b.dataset.id);else if(action==='view-sale')viewSale(b.dataset.id);
+    else if(action==='export-products')exportCollection('products',[['name','Product'],['sku','SKU'],['medicineType','Medicine type'],['category','Category'],['costPrice','Cost'],['salePrice','Sale price'],['wholesalePrice','Wholesale price'],['stock','Stock'],['reorderLevel','Reorder level'],['batch','Batch'],['expiryDate','Expiry']], 'poultry-medicine-inventory.csv');
+    else if(action==='export-sales')exportCollection('sales',[['invoiceNo','Invoice'],['customerName','Customer'],['date','Date'],['paymentMethod','Payment'],['total','Total'],['paid','Paid'],['profit','Profit']], 'poultry-medicine-sales.csv');
+    else if(action==='export-purchases')exportCollection('purchases',[['reference','Reference'],['supplierName','Supplier'],['date','Date'],['total','Total'],['paid','Paid'],['paymentStatus','Status']], 'poultry-medicine-purchases.csv');
+    else if(action==='export-customers')exportCollection('customers',[['name','Name'],['phone','Phone'],['email','Email'],['openingBalance','Opening balance'],['address','Address']], 'poultry-medicine-customers.csv');
+    else if(action==='export-suppliers')exportCollection('suppliers',[['name','Name'],['phone','Phone'],['email','Email'],['openingBalance','Opening balance'],['address','Address']], 'poultry-medicine-suppliers.csv');
+    else if(action==='export-expenses')exportCollection('expenses',[['title','Expense'],['category','Category'],['date','Date'],['amount','Amount'],['note','Note']], 'poultry-medicine-expenses.csv');
+    else if(action==='export-deliveries')exportCollection('deliveries',[['customerName','Customer'],['details','Items'],['salesperson','Salesperson'],['date','Date'],['status','Status'],['phone','Phone']], 'poultry-medicine-deliveries.csv');
+    else if(action==='export-returns')exportCollection('returns',[['invoiceNo','Invoice'],['customerName','Customer'],['date','Date'],['amount','Refund'],['profitLoss','Profit adjustment'],['reason','Reason']], 'poultry-medicine-returns.csv');
+    else if(action==='export-ledger'){const all=[];data.sales.forEach(x=>all.push([dateOf(x),'Sale',x.invoiceNo||'',x.customerName||'Walk-in',(x.items||[]).map(i=>`${i.name} x ${i.quantity}`).join('; '),x.paid||0,0]));data.purchases.forEach(x=>all.push([dateOf(x),'Purchase',x.reference||'',x.supplierName||'Supplier',(x.items||[]).map(i=>`${i.name} x ${i.quantity}`).join('; '),0,x.paid||0]));data.expenses.forEach(x=>all.push([dateOf(x),'Expense',x.title||'',x.category||'',x.note||'',0,x.amount||0]));data.returns.forEach(x=>all.push([dateOf(x),'Return',x.invoiceNo||'',x.customerName||'',x.reason||'',0,x.amount||0]));exportCollectionFromRows('poultry-medicine-ledger.csv',['Date','Type','Reference','Party','Details','Money in','Money out'],all);} else if(action==='export-all')exportAll(); else if(action==='logout')$('logoutBtn').click();
+  } catch(err){toast(err.message||'Action could not be completed.',true);}
 });
-
-
-document.querySelectorAll(".modal").forEach(modal => {
-
-  modal.addEventListener("click", e => {
-
-    if (e.target === modal) {
-      modal.classList.add("hidden");
-    }
-
-  });
-
+$('recordForm').addEventListener('submit',async e=>{
+  e.preventDefault();$('dialogError').textContent='';$('dialogSave').disabled=true;$('dialogSave').textContent='Saving…';
+  try { if(activeFormType==='view'){closeDialog();return;} if(activeFormType==='sale')await saveSale();else if(activeFormType==='purchase')await savePurchase(e.currentTarget);else if(activeFormType==='return')await saveReturn();else await saveGeneric(activeFormType,e.currentTarget); }
+  catch(err){$('dialogError').textContent=err.message||'Could not save this record.';}
+  finally{$('dialogSave').disabled=false;$('dialogSave').classList.remove('hidden');$('dialogSave').textContent=editRecord?'Save changes':(activeFormType==='sale'?'Complete sale':activeFormType==='purchase'?'Save purchase':activeFormType==='return'?'Record return':'Save record');}
 });
+$('dialogClose').addEventListener('click',closeDialog);$('dialogCancel').addEventListener('click',closeDialog);$('recordDialog').addEventListener('click',e=>{if(e.target===$('recordDialog'))closeDialog();});
+$('recordDialog').addEventListener('click',e=>{const b=e.target.closest('[data-remove-cart]');if(b){saleCart.splice(Number(b.dataset.removeCart),1);if(!saleCart.length)saleCart.push({productId:data.products[0]?.id||'',quantity:1,unitPrice:num(data.products[0]?.salePrice)});updateCartRows();}});
+$('recordDialog').addEventListener('input',e=>{if(e.target.id==='salePaid')e.target.dataset.touched='1';});
+$('pageContent').addEventListener('submit',async e=>{
+  if(e.target.id!=='copilotForm')return;
+  e.preventDefault(); if(copilotBusy)return;
+  const input=$('copilotInput'); const prompt=input.value.trim(); if(!prompt)return;
+  copilotBusy=true; copilotMessages.push({role:'user',text:prompt}); copilotMessages.push({role:'assistant',text:'Reviewing your business records…'}); renderCurrent();
+  try {
+    requireConfig(); const token=await currentUser.getIdToken();
+    const response=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({question:prompt})});
+    const result=await response.json(); if(!response.ok)throw new Error(result.error||'AI service is not configured yet.');
+    copilotMessages[copilotMessages.length-1]={role:'assistant',text:result.answer||'No answer was returned.'};
+  } catch(err) { copilotMessages[copilotMessages.length-1]={role:'assistant',text:`I could not connect to the AI service. ${err.message||'Please try again.'}\n\nSetup note: deploy the /api/ai.js function and configure OPENAI_API_KEY plus FIREBASE_SERVICE_ACCOUNT in Vercel Environment Variables.`}; }
+  finally { copilotBusy=false; renderCurrent(); const messagesEl=$('copilotMessages'); if(messagesEl)messagesEl.scrollTop=messagesEl.scrollHeight; }
+});
+$('pageContent').addEventListener('submit',async e=>{if(e.target.id!=='settingsForm')return;e.preventDefault();const v=formValues(e.target);try{await updateDoc(doc(db,'businesses',uid()),{name:v.name,type:v.type,currency:v.currency,timezone:v.timezone,updatedAt:serverTimestamp()});business={...business,...v};updateBusinessChrome();renderCurrent();toast('Business preferences saved.');}catch(err){toast(err.message||'Could not save settings.',true);}});
+$('alertsBtn').addEventListener('click',()=>{const low=data.products.filter(p=>num(p.stock)<=num(p.reorderLevel));const exp=data.products.filter(p=>p.expiryDate&&(new Date(`${p.expiryDate}T23:59:59`).getTime()-Date.now())<=30*86400000);const list=[...low.map(p=>`${p.name}: LOW STOCK (${p.stock} left)`),...exp.map(p=>`${p.name}: expiry ${p.expiryDate}`)];toast(list.length?list.slice(0,4).join(' · '):'No current stock or expiry alerts.');});
+$('yearNow').textContent=String(new Date().getFullYear());
 
-
-/* =====================================================
-   GLOBAL RENDER
-===================================================== */
-
-function renderAll() {
-
-  renderCategories();
-
-  renderDashboard();
-
-  renderInventory();
-
-  renderSales();
-
-  renderCustomers();
-
-  renderSalesmen();
-
-  renderReports();
-
+if(configReady) {
+  try { const app=initializeApp(FIREBASE_CONFIG);auth=getAuth(app);db=getFirestore(app);setPersistence(auth,browserLocalPersistence).catch(console.error); }
+  catch(e){console.error(e);}
 }
-
-
-/* =====================================================
-   START
-===================================================== */
-
-console.log(
-  "Poultry Medicine Manager loaded successfully."
-);
+if(!configReady) { setAuthError('Setup required: open app.js and replace FIREBASE_CONFIG placeholders with your Firebase Web App values.'); }
+if(auth) onAuthStateChanged(auth,async user=>{
+  currentUser=user;
+  if(!user){stopWatchers();showAuth();return;}
+  try { await ensureBusiness(user);await loadBusiness();showApp();$('userDisplayName').textContent=user.displayName||'Poultry Medicine Manager user';$('userEmail').textContent=user.email||'';$('userAvatar').textContent=(user.displayName||user.email||'U').slice(0,1).toUpperCase();startWatchers();navigate(activePage); }
+  catch(e){console.error(e);toast(e.message||'Could not open business workspace.',true);showAuth();}
+});
