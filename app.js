@@ -7,7 +7,7 @@ import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collec
 const FIREBASE_CONFIG = {
   // IMPORTANT: In Firebase Console -> Project settings -> General -> Your apps,
   // copy the Web App config for poultry-medicine-manager-93b79 and paste exact values here.
-  apiKey: 'AIzaSyCkyj91iDxfyFq3ErGucMykxB6h0trplM',
+  apiKey: 'AIzaSyCkyj91iDkxfyFq3ErGucMykxB6h0trplM',
   authDomain: 'poultry-medicine-manager-93b79.firebaseapp.com',
   projectId: 'poultry-medicine-manager-93b79',
   storageBucket: 'poultry-medicine-manager-93b79.firebasestorage.app',
