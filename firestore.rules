@@ -1,46 +1,18 @@
+
 rules_version = '2';
 
 service cloud.firestore {
-
   match /databases/{database}/documents {
 
-    function isOwner(userId) {
-      return request.auth != null
-        && request.auth.uid == userId;
+    // Har user ka business data uski UID ke andar hoga
+    match /businesses/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
     }
 
-
-    match /users/{userId} {
-
-      allow read, write:
-        if isOwner(userId);
-
-
-      match /inventory/{itemId} {
-
-        allow read, write:
-          if isOwner(userId);
-
-      }
-
-
-      match /sales/{saleId} {
-
-        allow read, write:
-          if isOwner(userId);
-
-      }
-
-
-      match /{document=**} {
-
-        allow read, write:
-          if isOwner(userId);
-
-      }
-
+    // Default: baqi tamam documents protected
+    match /{document=**} {
+      allow read, write: if false;
     }
-
   }
-
 }
