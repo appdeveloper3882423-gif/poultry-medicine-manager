@@ -283,26 +283,103 @@ let editRecord = null, activeFormType = null, saleCart = [];
 function openDialog(title, type, existing = null) {
   activeFormType = type; editRecord = existing; $('dialogTitle').textContent = `${existing?'Edit':'Add'} ${title}`; $('dialogError').textContent = ''; $('dialogCancel').textContent = 'Cancel'; $('dialogSave').classList.remove('hidden');
   if (type === 'product') title = 'stock';
-  if (type === 'sale') { saleCart = [{productId:data.products[0]?.id||'',quantity:1,unitPrice:num(data.products[0]?.salePrice)}]; renderSaleForm(existing); }
+  if (type === 'stock') renderStockForm();
+  else if (type === 'sale') { saleCart = [{productId:'',quantity:1,unitPrice:0}]; renderSaleForm(existing); }
   else if (type === 'purchase') renderPurchaseForm(existing);
   else if (type === 'return') renderReturnForm();
   else { const fields = schema[type] || []; $('dialogFields').innerHTML = fields.map(f=>makeField(f, existing ? existing[f.name] : (f.name==='date'?today():f.name==='unit'?'piece':f.name==='reorderLevel'?5:f.name==='status'?'Pending':f.name==='openingBalance'||f.name==='amount'||['stock','costPrice','salePrice','wholesalePrice'].includes(f.name)?0:''))).join(''); if(type==='product'){const sn=$('dialogFields').querySelector('[name="supplierName"]'),sp=$('dialogFields').querySelector('[name="supplierPhone"]');sn?.addEventListener('change',()=>{const found=data.suppliers.find(x=>String(x.name||'').toLowerCase()===sn.value.trim().toLowerCase());if(found&&sp)sp.value=found.phone||'';});} }
-  $('dialogSave').textContent = existing ? 'Save changes' : (type==='sale'?'Complete sale':type==='purchase'?'Save purchase':type==='return'?'Record return':'Save record');
+  $('dialogSave').textContent = existing ? 'Save changes' : (type==='stock'?'Add quantity':type==='sale'?'Complete sale':type==='purchase'?'Save purchase':type==='return'?'Record return':'Save record');
   $('recordDialog').showModal();
 }
+function renderStockForm() {
+  $('dialogFields').innerHTML = `<label class="wide-field">Search existing product<input id="stockProductSearch" type="search" placeholder="Type medicine / product name…" autocomplete="off"></label>
+    <div class="wide-field stock-search-results" id="stockSearchResults"><div class="search-empty">Start typing to find an existing product.</div></div>
+    <div class="wide-field stock-selected-card hidden" id="stockSelectedCard"></div>
+    <label class="wide-field">Additional quantity to add<input id="stockAddQuantity" type="number" min="0.001" step="0.001" placeholder="Enter incoming quantity" required></label>
+    <p class="wide-field muted-text">Existing product details will be kept unchanged. Only the stock quantity will increase.</p>
+    <div class="wide-field"><button type="button" class="btn btn-light" id="stockCreateNew">＋ Create a new product instead</button></div>`;
+  $('dialogSave').disabled = true;
+  $('stockProductSearch').addEventListener('input', renderStockSearchResults);
+  $('stockCreateNew').addEventListener('click', () => { closeDialog(); openDialog('product','product'); });
+}
+function renderStockSearchResults() {
+  const q = $('stockProductSearch')?.value.trim().toLocaleLowerCase() || '';
+  const host = $('stockSearchResults'); if (!host) return;
+  const matches = q ? data.products.filter(p => String(p.name||'').toLocaleLowerCase().includes(q)).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'})) : [];
+  host.innerHTML = matches.length ? matches.map(p=>`<button type="button" class="stock-result" data-stock-product="${esc(p.id)}"><strong>${esc(p.name)}</strong><span>${num(p.stock)} ${esc(p.unit||'units')} available · ${esc(p.medicineType||'Other')}</span></button>`).join('') : `<div class="search-empty">${q?'No matching product found.':'Start typing to find an existing product.'}</div>`;
+}
+function selectStockProduct(id) {
+  const p = data.products.find(x=>x.id===id); if(!p) return;
+  $('stockSelectedCard').classList.remove('hidden');
+  $('stockSelectedCard').innerHTML = `<strong>${esc(p.name)}</strong><div class="stock-detail-grid"><span>Current stock<b>${num(p.stock)} ${esc(p.unit||'units')}</b></span><span>Purchase cost<b>${esc(money(p.costPrice))}</b></span><span>Sale price<b>${esc(money(p.salePrice))}</b></span><span>Medicine type<b>${esc(p.medicineType||'Other')}</b></span><span>Batch<b>${esc(p.batch||'—')}</b></span><span>Expiry<b>${esc(p.expiryDate||'—')}</b></span></div>`;
+  $('stockSelectedCard').dataset.productId = id;
+  $('stockProductSearch').value = p.name;
+  $('stockSearchResults').innerHTML = '';
+  $('dialogSave').disabled = false;
+  $('stockAddQuantity').focus();
+}
+async function saveStock() {
+  requireConfig();
+  const id = $('stockSelectedCard')?.dataset.productId;
+  const quantity = num($('stockAddQuantity')?.value);
+  if(!id) throw new Error('Search and select an existing product first.');
+  if(quantity<=0) throw new Error('Enter an additional quantity greater than zero.');
+  const ref = docRef('products',id);
+  await runTransaction(db, async tx => {
+    const snap = await tx.get(ref);
+    if(!snap.exists()) throw new Error('Selected product no longer exists. Please search again.');
+    const raw = snap.data();
+    const next = num(raw.stock ?? raw.quantity ?? raw.currentStock) + quantity;
+    const patch = {stock:next, updatedAt:serverTimestamp()};
+    if('quantity' in raw) patch.quantity = next;
+    if('currentStock' in raw) patch.currentStock = next;
+    tx.update(ref,patch);
+  });
+  toast('Additional stock quantity added successfully.');
+  closeDialog();
+}
+
 function renderSaleForm() {
   $('dialogFields').innerHTML = `<label>Customer name<input id="saleCustomer" list="savedCustomersList" placeholder="Enter customer name" autocomplete="off"><datalist id="savedCustomersList">${data.customers.map(c=>`<option value="${esc(c.name)}"></option>`).join('')}</datalist></label><label>Customer contact number<input id="saleCustomerPhone" type="tel" placeholder="Customer phone number"></label><label>Payment method<select id="salePayment"><option>Cash</option><option>Bank transfer</option><option>Card</option><option>Mobile wallet</option><option>Credit</option><option>Mixed</option></select></label><label class="wide-field">Invoice note<input id="saleNote" placeholder="Optional note"></label><div class="wide-field"><div class="panel-head"><div><h3>Items in sale</h3><p>Choose products, quantity and selling price.</p></div></div><div id="saleCartRows">${saleCart.map((x,i)=>cartRow(x,i)).join('')}</div><button type="button" id="addCartRow" class="cart-add">＋ Add another item</button><div class="cart-total"><span>Invoice total</span><strong id="cartTotal">${money(cartTotal())}</strong></div></div><label>Amount paid<input id="salePaid" type="number" min="0" step="0.01" value="${cartTotal()}" required></label><label>Payment status<select id="salePayStatus"><option value="auto">Automatic from paid amount</option><option value="paid">Mark fully paid</option></select></label>`;
   $('saleCustomer').addEventListener('change',()=>{const c=data.customers.find(x=>x.name.toLowerCase()===$('saleCustomer').value.trim().toLowerCase());if(c && !$('saleCustomerPhone').value.trim())$('saleCustomerPhone').value=c.phone||'';});
-  $('addCartRow').addEventListener('click',()=>{saleCart.push({productId:data.products[0]?.id||'',quantity:1,unitPrice:num(data.products[0]?.salePrice)}); updateCartRows();});
+  $('addCartRow').addEventListener('click',()=>{saleCart.push({productId:'',quantity:1,unitPrice:0}); updateCartRows();});
   $('saleCartRows').addEventListener('input', cartChange); $('saleCartRows').addEventListener('change', cartChange);
   $('salePaid').addEventListener('input',()=>{});
   updateCartTotal();
 }
-function cartRow(item,i) { return `<div class="cart-row" data-cart-index="${i}"><select data-cart-field="productId"><option value="">Select product</option>${data.products.map(p=>`<option value="${p.id}" ${p.id===item.productId?'selected':''}>${esc(p.name)} (${num(p.stock)} available)</option>`).join('')}</select><input data-cart-field="quantity" type="number" min="0.001" step="0.001" value="${num(item.quantity)||1}" title="Quantity"><input data-cart-field="unitPrice" type="number" min="0" step="0.01" value="${num(item.unitPrice)}" title="Unit price"><button type="button" data-remove-cart="${i}" aria-label="Remove item">×</button></div>`; }
+function cartRow(item,i) {
+  const selected = data.products.find(p=>p.id===item.productId);
+  return `<div class="cart-row" data-cart-index="${i}">
+    <div class="sale-product-search-wrap">
+      <input class="sale-product-search" data-cart-search="${i}" type="search" value="${esc(selected?.name||'')}" placeholder="Search product…" autocomplete="off" aria-label="Search product">
+      <div class="sale-product-results" data-cart-results="${i}"></div>
+      <input type="hidden" data-cart-field="productId" value="${esc(item.productId||'')}">
+      ${selected?`<small class="sale-product-stock">${num(selected.stock)} ${esc(selected.unit||'units')} available</small>`:''}
+    </div>
+    <input data-cart-field="quantity" type="number" min="0.001" step="0.001" value="${num(item.quantity)||1}" title="Quantity" aria-label="Quantity">
+    <input data-cart-field="unitPrice" type="number" min="0" step="0.01" value="${num(item.unitPrice)}" title="Unit price" aria-label="Unit price">
+    <button type="button" data-remove-cart="${i}" aria-label="Remove item">×</button>
+  </div>`;
+}
 function cartChange(e) {
   const row=e.target.closest('[data-cart-index]'); if(!row)return; const i=Number(row.dataset.cartIndex), f=e.target.dataset.cartField; if(!f)return;
   if(f==='productId'){const p=data.products.find(x=>x.id===e.target.value);saleCart[i].productId=e.target.value;saleCart[i].unitPrice=num(p?.salePrice);updateCartRows();}
   else {saleCart[i][f]=num(e.target.value);updateCartTotal();}
+}
+function renderSaleProductResults(input) {
+  const row=input.closest('[data-cart-index]'); if(!row)return;
+  const index=Number(row.dataset.cartIndex), host=row.querySelector('[data-cart-results]');
+  const q=input.value.trim().toLocaleLowerCase();
+  if(!host)return;
+  const matches=q?data.products.filter(p=>String(p.name||'').toLocaleLowerCase().includes(q)).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'})):[];
+  host.innerHTML=matches.length?matches.map(p=>`<button type="button" class="sale-product-result" data-sale-product-choice="${esc(p.id)}" data-cart-index="${index}"><strong>${esc(p.name)}</strong><span>${num(p.stock)} ${esc(p.unit||'units')} available</span></button>`).join(''):`<div class="search-empty">${q?'No matching products found.':'Type to search products.'}</div>`;
+  host.classList.toggle('open',true);
+}
+function chooseSaleProduct(id,index) {
+  const p=data.products.find(x=>x.id===id); if(!p)return;
+  saleCart[index].productId=id;
+  saleCart[index].unitPrice=num(p.salePrice);
+  updateCartRows();
 }
 function updateCartRows() { const el=$('saleCartRows'); if(el){el.innerHTML=saleCart.map((x,i)=>cartRow(x,i)).join('');} updateCartTotal(); }
 function updateCartTotal() { const total=cartTotal(); if($('cartTotal'))$('cartTotal').textContent=money(total); if($('salePaid') && !$('salePaid').dataset.touched) $('salePaid').value=total.toFixed(2); }
@@ -444,7 +521,7 @@ $('pageContent').addEventListener('click',async e=>{
   const pageLink=e.target.closest('[data-page-link]');if(pageLink){navigate(pageLink.dataset.pageLink);return;}
   const b=e.target.closest('[data-action]');if(!b)return;const action=b.dataset.action;
   try {
-    if(action==='new-product')openDialog('product','product'); else if(action==='new-sale') {if(!data.products.length)throw new Error('Add at least one product before recording a sale.');openDialog('sale','sale');}
+    if(action==='new-product')openDialog('stock','stock'); else if(action==='new-sale') {if(!data.products.length)throw new Error('Add at least one product before recording a sale.');openDialog('sale','sale');}
     else if(action==='new-purchase'){if(!data.products.length)throw new Error('Add at least one product before recording a purchase.');openDialog('purchase','purchase');}
     else if(action==='new-customer')openDialog('customer','customer');else if(action==='new-supplier')openDialog('supplier','supplier');else if(action==='new-expense')openDialog('expense','expense');else if(action==='new-delivery')openDialog('delivery','delivery');else if(action==='new-return'){if(!data.sales.length)throw new Error('Record a sale before recording a return.');openDialog('return','return');}
     else if(action==='edit'){const type=b.dataset.type, record=findRecord(type,b.dataset.id);if(record)openDialog(type,type,record);}
@@ -462,13 +539,13 @@ $('pageContent').addEventListener('click',async e=>{
 });
 $('recordForm').addEventListener('submit',async e=>{
   e.preventDefault();$('dialogError').textContent='';$('dialogSave').disabled=true;$('dialogSave').textContent='Saving…';
-  try { if(activeFormType==='view'){closeDialog();return;} if(activeFormType==='sale')await saveSale();else if(activeFormType==='purchase')await savePurchase(e.currentTarget);else if(activeFormType==='return')await saveReturn();else await saveGeneric(activeFormType,e.currentTarget); }
+  try { if(activeFormType==='view'){closeDialog();return;} if(activeFormType==='stock')await saveStock();else if(activeFormType==='sale')await saveSale();else if(activeFormType==='purchase')await savePurchase(e.currentTarget);else if(activeFormType==='return')await saveReturn();else await saveGeneric(activeFormType,e.currentTarget); }
   catch(err){$('dialogError').textContent=err.message||'Could not save this record.';}
-  finally{$('dialogSave').disabled=false;$('dialogSave').classList.remove('hidden');$('dialogSave').textContent=editRecord?'Save changes':(activeFormType==='sale'?'Complete sale':activeFormType==='purchase'?'Save purchase':activeFormType==='return'?'Record return':'Save record');}
+  finally{$('dialogSave').disabled=false;$('dialogSave').classList.remove('hidden');$('dialogSave').textContent=editRecord?'Save changes':(activeFormType==='stock'?'Add quantity':activeFormType==='sale'?'Complete sale':activeFormType==='purchase'?'Save purchase':activeFormType==='return'?'Record return':'Save record');}
 });
 $('dialogClose').addEventListener('click',closeDialog);$('dialogCancel').addEventListener('click',closeDialog);$('recordDialog').addEventListener('click',e=>{if(e.target===$('recordDialog'))closeDialog();});
-$('recordDialog').addEventListener('click',e=>{const printBtn=e.target.closest('[data-action="print-sale"]');if(printBtn){printSale(printBtn.dataset.id);return;}const b=e.target.closest('[data-remove-cart]');if(b){saleCart.splice(Number(b.dataset.removeCart),1);if(!saleCart.length)saleCart.push({productId:data.products[0]?.id||'',quantity:1,unitPrice:num(data.products[0]?.salePrice)});updateCartRows();}});
-$('recordDialog').addEventListener('input',e=>{if(e.target.id==='salePaid')e.target.dataset.touched='1';});
+$('recordDialog').addEventListener('click',e=>{const stockChoice=e.target.closest('[data-stock-product]');if(stockChoice){selectStockProduct(stockChoice.dataset.stockProduct);return;}const saleChoice=e.target.closest('[data-sale-product-choice]');if(saleChoice){chooseSaleProduct(saleChoice.dataset.saleProductChoice,Number(saleChoice.dataset.cartIndex));return;}const printBtn=e.target.closest('[data-action="print-sale"]');if(printBtn){printSale(printBtn.dataset.id);return;}const b=e.target.closest('[data-remove-cart]');if(b){saleCart.splice(Number(b.dataset.removeCart),1);if(!saleCart.length)saleCart.push({productId:'',quantity:1,unitPrice:0});updateCartRows();}});
+$('recordDialog').addEventListener('input',e=>{if(e.target.id==='salePaid')e.target.dataset.touched='1';if(e.target.id==='stockProductSearch')renderStockSearchResults();if(e.target.matches('[data-cart-search]')){const row=e.target.closest('[data-cart-index]'),i=Number(row?.dataset.cartIndex),selected=data.products.find(p=>p.id===saleCart[i]?.productId);if(selected && e.target.value.trim()!==selected.name){saleCart[i].productId='';saleCart[i].unitPrice=0;const hidden=row.querySelector('[data-cart-field="productId"]');if(hidden)hidden.value='';updateCartTotal();}renderSaleProductResults(e.target);}});
 $('pageContent').addEventListener('submit',async e=>{
   if(e.target.id!=='copilotForm')return;
   e.preventDefault(); if(copilotBusy)return;
