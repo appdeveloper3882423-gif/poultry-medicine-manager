@@ -144,6 +144,93 @@ function table(headers, rows, empty = 'No records yet.') {
 function tr(cells) { return `<tr>${cells.map(c=>`<td>${c ?? '—'}</td>`).join('')}</tr>`; }
 function productName(id) { return data.products.find(p=>p.id===id)?.name || 'Deleted product'; }
 function filterItems(items, fields) { const s = searchText.trim().toLowerCase(); return !s ? items : items.filter(item => fields.some(f => String(item[f] ?? '').toLowerCase().includes(s))); }
+
+function globalSearchRecords(value) {
+  const q = value.trim().toLowerCase();
+  if (!q) return [];
+
+  const configs = [
+    { key: 'products', page: 'inventory', label: 'Medicine Stock',
+      fields: ['name', 'sku', 'medicineType', 'category', 'batch'] },
+    { key: 'sales', page: 'sales', label: 'Sales',
+      fields: ['invoiceNo', 'customerName', 'customerPhone', 'paymentMethod'] },
+    { key: 'purchases', page: 'purchases', label: 'Purchases',
+      fields: ['reference', 'supplierName', 'supplierPhone'] },
+    { key: 'customers', page: 'customers', label: 'Customers',
+      fields: ['name', 'phone', 'email'] },
+    { key: 'suppliers', page: 'suppliers', label: 'Suppliers',
+      fields: ['name', 'phone', 'email'] },
+    { key: 'expenses', page: 'expenses', label: 'Expenses',
+      fields: ['title', 'category', 'note'] },
+    { key: 'deliveries', page: 'deliveries', label: 'Deliveries',
+      fields: ['customerName', 'details', 'salesperson', 'status'] },
+    { key: 'returns', page: 'returns', label: 'Returns',
+      fields: ['invoiceNo', 'customerName', 'reason'] }
+  ];
+
+  return configs.flatMap(config =>
+    data[config.key]
+      .filter(record =>
+        config.fields.some(field =>
+          String(record[field] ?? '').toLowerCase().includes(q)
+        )
+      )
+      .map(record => ({
+        id: record.id,
+        page: config.page,
+        category: config.label,
+        title:
+          record.name ||
+          record.title ||
+          record.invoiceNo ||
+          record.reference ||
+          record.customerName ||
+          record.details ||
+          'Record',
+        searchValue: value
+      }))
+  ).slice(0, 20);
+}
+
+function renderGlobalSearchResults(value) {
+  const box = $('globalSearchResults');
+  if (!box) return;
+
+  const q = value.trim();
+
+  if (!q) {
+    box.innerHTML = '';
+    box.classList.add('hidden');
+    return;
+  }
+
+  const results = globalSearchRecords(q);
+
+  if (!results.length) {
+    box.innerHTML = `
+      <div class="global-search-empty">
+        No results found for "${esc(q)}"
+      </div>`;
+    box.classList.remove('hidden');
+    return;
+  }
+
+  box.innerHTML = results.map((item, index) => `
+    <button type="button"
+      class="global-search-result"
+      data-global-result="${index}">
+      <span>
+        <strong>${esc(item.title)}</strong>
+        <small>${esc(item.category)}</small>
+      </span>
+      <span>→</span>
+    </button>
+  `).join('');
+
+  box._results = results;
+  box.classList.remove('hidden');
+}
+
 function currentSales() { return data.sales.filter(s => dateOf(s) === today()); }
 function netProfit() { return sum(data.sales,'profit') - sum(data.expenses,'amount') - sum(data.returns,'profitLoss'); }
 function salesThisMonth() { const month = today().slice(0,7); return data.sales.filter(s => dateOf(s).startsWith(month)); }
@@ -512,7 +599,47 @@ $('googleBtn').addEventListener('click',async()=>{try{requireConfig();setAuthErr
 $('logoutBtn').addEventListener('click',async()=>{try{stopWatchers();await signOut(auth);toast('Signed out.');}catch(e){toast(e.message,true);}});
 $('menuBtn').addEventListener('click',()=>{$('sidebar').classList.add('open');$('scrim').classList.remove('hidden');});$('closeMenu').addEventListener('click',()=>{$('sidebar').classList.remove('open');$('scrim').classList.add('hidden');});$('scrim').addEventListener('click',()=>{$('sidebar').classList.remove('open');$('scrim').classList.add('hidden');});
 $('mainNav').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b)navigate(b.dataset.page);});
-$('globalSearch').addEventListener('input',e=>{searchText=e.target.value;renderCurrent();const local=$('pageContent').querySelector('[data-search]');if(local){local.value=searchText;local.focus();local.setSelectionRange(searchText.length,searchText.length);}});
+
+const globalSearchBox = $('globalSearch').parentElement;
+
+let globalResultsBox = $('globalSearchResults');
+
+if (!globalResultsBox) {
+  globalResultsBox = document.createElement('div');
+  globalResultsBox.id = 'globalSearchResults';
+  globalResultsBox.className = 'global-search-results';
+  globalSearchBox.appendChild(globalResultsBox);
+}
+
+$('globalSearch').addEventListener('input', e => {
+  renderGlobalSearchResults(e.target.value);
+});
+
+$('globalSearchResults').addEventListener('click', e => {
+  const btn = e.target.closest('[data-global-result]');
+  if (!btn) return;
+
+  const result = globalResultsBox._results?.[
+    Number(btn.dataset.globalResult)
+  ];
+
+  if (!result) return;
+
+  searchText = result.searchValue;
+  inventoryFilter = 'all';
+
+  $('globalSearch').value = '';
+  globalResultsBox.classList.add('hidden');
+
+  navigate(result.page);
+});
+
+document.addEventListener('click', e => {
+  if (!globalSearchBox.contains(e.target)) {
+    globalResultsBox.classList.add('hidden');
+  }
+});
+
 $('pageContent').addEventListener('input',e=>{if(e.target.matches('[data-search]')){searchText=e.target.value;const pos=e.target.selectionStart;renderCurrent();const next=$('pageContent').querySelector('[data-search]');if(next){next.focus();next.setSelectionRange(pos,pos);}}});
 $('pageContent').addEventListener('click',async e=>{
   const rangeBtn=e.target.closest('[data-chart-range]'); if(rangeBtn){chartRange=Number(rangeBtn.dataset.chartRange)||30;renderCurrent();return;}
