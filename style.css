@@ -136,3 +136,27 @@ html{scroll-behavior:smooth}body{overflow-x:hidden}.main-area,.page-content,.pan
 
 /* Added clickable dashboard alerts without changing the existing theme */
 .metric-clickable{cursor:pointer;transition:transform .16s ease,border-color .16s ease}.metric-clickable:hover,.metric-clickable:focus{transform:translateY(-2px);outline:2px solid rgba(39,139,255,.35);outline-offset:2px}.alert-clickable{width:100%;text-align:left;color:inherit;background:transparent;border:0;cursor:pointer;font:inherit}.alert-clickable:hover{background:rgba(39,139,255,.07)}
+
+
+/* Focused fixes: existing-item stock addition and accurate live product search in New Sale. */
+.stock-search-results,.sale-product-results{display:grid;gap:6px;max-height:210px;overflow:auto}
+.stock-result,.sale-product-result{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;border:1px solid #e5eaf1;background:#fff;border-radius:9px;padding:10px 12px;color:#26364f}
+.stock-result:hover,.sale-product-result:hover{border-color:#7bd3bf;background:#f5fffb}
+.stock-result strong,.sale-product-result strong{font-size:12px}
+.stock-result span,.sale-product-result span{font-size:10px;color:#8190a5;text-align:right}
+.stock-selected-card{border:1px solid #dcebe6;background:#f7fffc;border-radius:11px;padding:13px}
+.stock-selected-card>strong{display:block;font-size:14px;margin-bottom:10px;color:#20344d}
+.stock-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stock-detail-grid span{font-size:10px;color:#8290a4}
+.stock-detail-grid b{display:block;color:#34445c;font-size:11px;margin-top:4px;overflow-wrap:anywhere}
+.sale-product-search-wrap{position:relative;min-width:0}
+.sale-product-search-wrap>.sale-product-search{width:100%;min-width:0;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:11px}
+.sale-product-results{display:none;position:absolute;z-index:30;top:calc(100% + 4px);left:0;right:0;max-height:220px;padding:5px;background:#fff;border:1px solid #dfe7ef;border-radius:9px;box-shadow:0 12px 30px #14254020}
+.sale-product-results.open{display:grid}
+.sale-product-result{padding:9px 10px}
+.sale-product-stock{display:block;font-size:9px;color:#8491a4;margin:4px 2px 0}
+@media(max-width:560px){
+  .stock-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cart-row{grid-template-columns:minmax(0,1fr) 54px 70px 26px}
+  .sale-product-results{max-height:180px}
+}
