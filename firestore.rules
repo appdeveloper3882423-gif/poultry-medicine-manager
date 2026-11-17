@@ -1,16 +1,21 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Har user ka business data uski UID ke andar hoga
-    match /businesses/{userId}/{document=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+    // Each signed-in account can access only its own workspace.
+    // The app stores the business profile at users/{uid} and records in
+    // users/{uid}/{collection}/{documentId}.
+    match /users/{userId} {
+      allow read, create, update, delete: if request.auth != null
+        && request.auth.uid == userId;
+
+      match /{document=**} {
+        allow read, create, update, delete: if request.auth != null
+          && request.auth.uid == userId;
+      }
     }
 
-    // Default: baqi tamam documents protected
+    // Deny all other documents by default.
     match /{document=**} {
       allow read, write: if false;
     }
