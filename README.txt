@@ -1,92 +1,137 @@
+
 POULTRY MEDICINE MANAGER
-========================
+=======================
 
 PROJECT FILES
 -------------
-1. index.html       Main application interface
-2. style.css        Responsive styling
-3. app.js           Application logic and Firebase connection
-4. firestore.rules  Firestore access rules
-5. README.txt       Setup and deployment instructions
+1. README.txt
+2. index.html
+3. style.css
+4. app.js
+5. firestore.rules
 
-IMPORTANT
----------
-This package consolidates the supplied Poultry Medicine Manager project into
-five files. It preserves the existing app data model and Firebase project.
-It is not a newly generated enterprise backend. Features that require a
-separate server/API (for example the AI Copilot API endpoint) need that server
-component deployed separately.
 
-FIREBASE PROJECT
-----------------
-Project ID: poultry-medicine-manager-93b79
-The existing Firebase Web App configuration is already present in app.js.
-The Firebase web API key is a public client identifier; database access must
-be protected by Firestore Security Rules and Firebase Authentication.
+REQUIREMENTS
+------------
+- Google account
+- Firebase project
+- GitHub account
+- Vercel account
+- Internet connection
 
-FIREBASE SETUP
---------------
-1. Open https://console.firebase.google.com/ and select:
+
+STEP 1: FIREBASE CONFIGURATION
+------------------------------
+1. Open https://console.firebase.google.com/
+2. Select your existing project:
    poultry-medicine-manager-93b79
-2. In Authentication > Sign-in method, enable:
-   - Email/Password
-   - Google
-3. In Firestore Database, create or open the database.
-4. Open Firestore Database > Rules.
-5. Copy the complete contents of firestore.rules into the Rules editor.
-6. Click Publish.
-7. In Project settings > General, confirm that the Web App configuration in
-   app.js matches this Firebase project.
+3. Open Project Settings.
+4. Find Your Apps.
+5. Select your existing Web App.
+6. Copy its Firebase configuration.
+7. Open app.js.
+8. Find FIREBASE_CONFIG.
+9. Replace its values with the exact configuration
+   copied from Firebase Console.
 
-RUN LOCALLY
+IMPORTANT:
+Do not create a new Firebase project.
+Use your existing project and database.
+
+
+STEP 2: ENABLE AUTHENTICATION
+-----------------------------
+1. Open Firebase Authentication.
+2. Select Sign-in method.
+3. Enable Email/Password.
+4. Enable Google.
+5. Save changes.
+
+
+STEP 3: FIRESTORE DATABASE
+--------------------------
+1. Open Firestore Database.
+2. Make sure your existing database is available.
+3. Open the Rules tab.
+4. Back up your existing rules.
+5. Review and publish the supplied firestore.rules.
+
+IMPORTANT:
+The supplied rules allow each signed-in user
+to access their own /users/{uid}/ records.
+They do not implement staff or branch permissions.
+
+
+STEP 4: PROJECT FILES
+---------------------
+Keep all five files in the same project folder:
+
+PoultryMedicineManager/
+|
+|-- index.html
+|-- style.css
+|-- app.js
+|-- firestore.rules
+|-- README.txt
+
+
+STEP 5: TEST LOCALLY
+--------------------
+1. Open the project folder in VS Code.
+2. Install the Live Server extension.
+3. Right-click index.html.
+4. Select Open with Live Server.
+5. Test registration and login.
+6. Test inventory and sales.
+7. Check browser console for errors.
+
+
+STEP 6: GITHUB UPLOAD
+---------------------
+1. Open https://github.com/
+2. Create or open your repository.
+3. Upload the project files.
+4. Commit the changes.
+
+
+STEP 7: VERCEL DEPLOYMENT
+-------------------------
+1. Open https://vercel.com/
+2. Import your GitHub repository.
+3. Select the project.
+4. Keep the framework preset as Other.
+5. Deploy.
+6. Open the generated website URL.
+7. Test the application on mobile and desktop.
+
+
+DATA SAFETY
 -----------
-1. Extract the ZIP.
-2. Open the extracted folder in VS Code.
-3. Use a local development server (for example VS Code Live Server).
-   Do not open index.html directly as a file:// page because app.js uses ES
-   module imports from Google's Firebase CDN.
-4. Visit the local server URL and create an account or sign in.
+- Keep your existing Firebase project.
+- Do not delete existing Firestore collections.
+- Do not change existing document IDs.
+- Back up your database before changing rules.
+- Never share private passwords or service-account keys.
+- Firebase web configuration is not a service-account key.
 
-DEPLOY TO VERCEL
-----------------
-1. Upload the five files to the root of a GitHub repository.
-2. Import that repository into Vercel.
-3. Framework preset: Other.
-4. Build command: leave empty.
-5. Output directory: leave as the project root (or use the default static
-   output setting offered by Vercel).
-6. Deploy.
 
-DATA AND SECURITY NOTES
------------------------
-- Existing app records are stored under users/{your-auth-uid}.
-- Product records use the inventory subcollection; other records use their
-  named subcollections (sales, purchases, customers, suppliers, expenses,
-  deliveries, returns and ledger).
-- The included rules isolate each user's workspace from other user accounts.
-- These rules are owner-account rules. They do not implement secure staff
-  membership, custom role permissions, branch-level access, or Admin SDK
-  account creation. Those require trusted server-side Cloud Functions or
-  another backend and corresponding security rules.
-- Never store staff passwords in Firestore or expose Firebase Admin SDK
-  credentials in browser code.
-- Keep regular backups of important business data.
+IMPORTANT PROJECT LIMITATIONS
+-----------------------------
+This version should be tested before being used for
+real business records.
 
-AI COPILOT NOTE
----------------
-The current app calls /api/ai for AI Copilot responses. This ZIP intentionally
-contains the requested five files only and does not include that server API.
-The Copilot requires a separately deployed server endpoint and secure server
-credentials (such as Vercel environment variables). Do not put an AI secret
-key in app.js.
+The delivered code does not yet implement the full
+advanced ERP scope, including:
 
-TROUBLESHOOTING
----------------
-- If sign-in fails, confirm Email/Password or Google provider is enabled.
-- If data reads/writes fail, confirm firestore.rules has been published.
-- If Google sign-in is blocked, add your deployed domain under Firebase
-  Authentication > Settings > Authorized domains.
-- If the browser shows a module/CORS error, serve the folder over HTTP using
-  a local development server instead of opening the HTML file directly.
-- If the app was previously deployed, use the same Firebase project and
-  existing account so the app can read that account's existing records.
+- Batch-wise FEFO stock management
+- Complete double-entry accounting
+- Multi-branch permissions
+- Staff role-based access
+- Advanced approval workflows
+- Full audit and stock movement history
+
+Do not treat these features as completed until they
+are separately developed and tested.
+
+
+END OF README
