@@ -1,21 +1,30 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Each signed-in account can access only its own workspace.
-    // The app stores the business profile at users/{uid} and records in
-    // users/{uid}/{collection}/{documentId}.
-    match /users/{userId} {
-      allow read, create, update, delete: if request.auth != null
-        && request.auth.uid == userId;
+    function signedIn() {
+      return request.auth != null;
+    }
 
-      match /{document=**} {
-        allow read, create, update, delete: if request.auth != null
-          && request.auth.uid == userId;
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // User profile
+    match /users/{userId} {
+      allow read, create, update: if isOwner(userId);
+      allow delete: if false;
+
+      // User's inventory, sales, purchases,
+      // customers, suppliers and other records
+      match /{collectionName}/{documentId} {
+        allow read, create, update, delete: if isOwner(userId);
       }
     }
 
-    // Deny all other documents by default.
+    // Block all other database paths
     match /{document=**} {
       allow read, write: if false;
     }
