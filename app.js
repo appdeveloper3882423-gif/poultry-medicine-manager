@@ -3,6 +3,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail, updateProfile, signOut, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, runTransaction, query, orderBy, where } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-functions.js';
 
 const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyCkyj91iDkxfyFq3ErGucMykxB6h0trplM',
@@ -14,23 +15,35 @@ const FIREBASE_CONFIG = {
 };
 
 const configReady = FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('PASTE_') && FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.projectId !== 'YOUR_PROJECT_ID' && FIREBASE_CONFIG.appId && !FIREBASE_CONFIG.appId.includes('PASTE_');
-let auth = null, db = null, currentUser = null, business = { name: 'Poultry Medicine Manager', type: 'general', currency: 'PKR', timezone: 'Asia/Karachi' };
-let unsubs = [], authMode = 'login', activePage = 'dashboard', searchText = '', toastTimer = null, chartRange = 30, copilotMessages = [], copilotBusy = false, inventoryFilter = 'all';
+let auth = null, db = null, currentUser = null, tenantUid = null, business = { name: 'Poultry Medicine Manager', type: 'general', currency: 'PKR', timezone: 'Asia/Karachi' };
+let unsubs = [], authMode = 'login', activePage = 'dashboard', searchText = '', toastTimer = null, chartRange = 30, inventoryFilter = 'all';
 const rangeLabels = {7:'1W',30:'1M',90:'3M',180:'6M',365:'1Y'};
-const data = { products: [], sales: [], purchases: [], customers: [], suppliers: [], expenses: [], deliveries: [], returns: [], ledger: [] };
-const pageNames = { dashboard: 'Dashboard', inventory: 'Medicine Stock', sales: 'Sales & POS', purchases: 'Purchases', ledger: 'Ledger', customers: 'Customers & Khata', suppliers: 'Suppliers', expenses: 'Expenses', deliveries: 'Deliveries', returns: 'Returns', reports: 'Reports', settings: 'Settings', copilot: 'AI Business Copilot' };
+const data = { products: [], sales: [], purchases: [], customers: [], suppliers: [], expenses: [], deliveries: [], returns: [], ledger: [], batches: [], stockMovements: [], auditLogs: [] };
+const pageNames = { dashboard: 'Dashboard', inventory: 'Medicine Stock', sales: 'Sales & POS', purchases: 'Purchases', ledger: 'Ledger', customers: 'Customers & Khata', suppliers: 'Suppliers', expenses: 'Expenses', deliveries: 'Deliveries', returns: 'Returns', reports: 'Reports', settings: 'Settings' };
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const num = value => Number(value || 0);
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const money = value => { try { return new Intl.NumberFormat('en-PK',{style:'currency',currency:business.currency || 'PKR',maximumFractionDigits:2}).format(num(value)); } catch { return `${business.currency || 'PKR'} ${num(value).toFixed(2)}`; } };
-const uid = () => currentUser?.uid;
+const uid = () => tenantUid || currentUser?.uid;
 const storedCollection = name => name === 'products' ? 'inventory' : name;
 const col = name => collection(db, 'users', uid(), storedCollection(name));
 const docRef = (name, id) => doc(db, 'users', uid(), storedCollection(name), id);
 const sum = (items, field) => items.reduce((n, x) => n + num(x[field]), 0);
 const dateOf = x => { if (x?.date) return String(x.date).slice(0,10); const c=x?.createdAt; if (typeof c==='string') return c.slice(0,10); if (c?.toDate) return c.toDate().toISOString().slice(0,10); if (c?.seconds) return new Date(c.seconds*1000).toISOString().slice(0,10); return ''; };
 const invoiceNo = () => `PMM-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2,5).toUpperCase()}`;
+const batchCol = () => col('batches');
+const movementCol = () => col('stockMovements');
+async function writeMovement(transaction, payload) {
+  const ref = doc(movementCol());
+  transaction.set(ref, { ...payload, branchId:payload.branchId||pmActiveBranch||'main', createdAt: serverTimestamp(), createdBy: uid() });
+}
+async function writeAudit(action, entity, entityId, details = {}) {
+  try { await add('auditLogs', { action, entity, entityId, details, branchId:pmActiveBranch||'main', actorUid: uid(), actorEmail: currentUser?.email || '' }); }
+  catch (e) { console.warn('Audit log could not be written:', e); }
+}
+const safeDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? String(value) : '9999-12-31';
+
 
 function toast(message, bad = false) {
   const el = $('toast'); el.textContent = message; el.style.background = bad ? '#a72e3d' : '#142540'; el.classList.add('show');
@@ -94,9 +107,12 @@ function normalizeLegacyRecord(name, raw, id) {
 function startWatchers() {
   stopWatchers(); const names = Object.keys(data);
   names.forEach(name => {
-    const q = col(name);
+    let q = col(name);
+    if (currentUser?.uid !== uid() && Array.isArray(pmAllowedBranches) && pmAllowedBranches.length) q = query(q, where('branchId','in',pmAllowedBranches));
     const unsub = onSnapshot(q, snap => {
       data[name] = snap.docs.map(d => normalizeLegacyRecord(name, d.data(), d.id));
+      if($('syncStatus')) $('syncStatus').textContent='Live sync · '+new Date().toLocaleTimeString();
+      if(name==='products') updateAlertChrome();
       if (activePage) renderCurrent();
     }, err => { console.error(`Firestore ${name} listener:`, err); toast(`Could not sync ${name}. Check Firestore rules.`, true); });
     unsubs.push(unsub);
@@ -409,15 +425,6 @@ function renderSettings() {
     </div>
     <div class="notice warning section-gap">Changing the displayed currency does not convert historical amounts. Existing transaction values remain unchanged.</div>`;
 }
-function renderCopilot() {
-  const starter = `<div class="copilot-welcome"><div class="copilot-orb">✦</div><h2>Business Copilot</h2><p>Ask questions about the figures currently available in this workspace.</p><div class="copilot-suggestions"><button data-prompt="Summarize my current stock and low-stock products.">Summarize my stock</button><button data-prompt="Summarize my recorded sales and expenses.">Review sales and expenses</button><button data-prompt="Which products have expiry dates coming soon?">Check expiry alerts</button></div></div>`;
-  const messages=copilotMessages.map(m=>`<div class="copilot-message ${m.role==='user'?'user':'assistant'}"><div class="copilot-avatar">${m.role==='user'?'U':'✦'}</div><div class="copilot-bubble">${esc(m.text).replace(/\n/g,'<br>')}</div></div>`).join('');
-  return `${pageHead('AI Business Copilot','A simple assistant for exploring the data saved in your workspace.')}
-    <section class="panel copilot-panel"><div class="copilot-conversation" id="copilotConversation">${messages||starter}${copilotBusy?'<div class="copilot-message assistant"><div class="copilot-avatar">✦</div><div class="copilot-bubble">Reviewing your workspace data…</div></div>':''}</div>
-      <form id="copilotForm" class="copilot-input"><textarea name="prompt" rows="2" placeholder="Ask about your stock, sales, purchases or expenses…" required></textarea><button class="btn btn-primary" type="submit" ${copilotBusy?'disabled':''}>Send ↑</button></form>
-      <p class="copilot-disclaimer">This basic assistant uses the figures already loaded in your app. It is not a connected AI service and does not provide veterinary or medical treatment advice.</p>
-    </section>`;
-}
 function renderCurrent() {
   if (!currentUser || !db) return;
   updateAlertChrome();
@@ -426,7 +433,6 @@ function renderCurrent() {
     purchases:renderPurchases,ledger:renderLedger,customers:renderCustomers,
     suppliers:renderSuppliers,expenses:renderExpenses,deliveries:renderDeliveries,
     returns:renderReturns,reports:renderReports,settings:renderSettings,
-    copilot:renderCopilot
   };
   const render=renderers[activePage]||renderDashboard;
   $('pageContent').innerHTML=render();
@@ -453,9 +459,10 @@ const paymentOptions = [
   {value:'Credit',label:'Credit / Due'}
 ];
 function dialogOpen(title,content,submitLabel='Save record') {
+  const save=$('dialogSave'); if(save){save.type='submit';save.disabled=false;save.textContent=submitLabel;save.onclick=null;}
   $('dialogTitle').textContent=title;
   $('dialogFields').innerHTML=content;
-  $('recordSubmit').textContent=submitLabel;
+  $('dialogSave').textContent=submitLabel;
   $('recordDialog').showModal();
 }
 function dialogClose() {
@@ -486,7 +493,7 @@ function openRecordForm(type,id=null) {
       ${field('Expiry date','expiryDate','date',v('expiryDate'))}
       ${field('Supplier','supplierName','text',v('supplierName'))}
       ${field('Description / notes','description','textarea',v('description'))}
-    </div>`;
+    </div><div class="notice">For new stock deliveries, use Purchases so each delivery is recorded as a separate batch with its own expiry date. Editing stock here creates an adjustment record.</div>`;
   } else if(type==='customer') {
     title=id?'Edit customer':'Add customer';
     content=`<div class="form-grid">
@@ -581,7 +588,6 @@ function openRecordForm(type,id=null) {
   }
   $('recordForm').dataset.type=type;
   $('recordForm').dataset.id=id||'';
-  $('recordForm').onsubmit=handleRecordSubmit;
   dialogOpen(title,content,saveLabel);
 }
 function formObject(form) {
@@ -602,7 +608,7 @@ function findSupplier(id) {
 }
 async function saveSimpleRecord(type, id, payload) {
   if(id) await update(type,id,payload);
-  else await add(type,payload);
+  else await add(type,{...payload,branchId:payload.branchId||pmActiveBranch||'main'});
 }
 async function handleRecordSubmit(event) {
   event.preventDefault();
@@ -611,17 +617,27 @@ async function handleRecordSubmit(event) {
   const id=form.dataset.id||'';
   const payload=formObject(form);
   try {
-    $('recordSubmit').disabled=true;
-    $('recordSubmit').textContent='Saving…';
+    $('dialogSave').disabled=true;
+    $('dialogSave').textContent='Saving…';
 
     if(type==='product') {
       cleanNumberFields(payload,['stock','costPrice','salePrice','reorderLevel']);
       if(payload.stock<0 || payload.costPrice<0 || payload.salePrice<0) throw new Error('Quantity and prices cannot be negative.');
       if(id) {
+        const before = getProduct(id);
         await update('products',id,payload);
+        const delta = num(payload.stock) - num(before?.stock);
+        if (delta) {
+          await add('stockMovements',{ productId:id, productName:payload.name, branchId:pmActiveBranch||'main', type:delta>0?'ADJUSTMENT_IN':'ADJUSTMENT_OUT', quantity:Math.abs(delta), before:num(before?.stock), after:num(payload.stock), note:'Manual stock adjustment', date:today() });
+        }
       } else {
-        await add('products',{...payload,stock:num(payload.stock),createdFrom:'manual'});
+        const created = await add('products',{...payload,stock:num(payload.stock),branchId:pmActiveBranch||'main',createdFrom:'manual'});
+        if (num(payload.stock) > 0) {
+          await add('batches',{ productId:created.id, productName:payload.name, branchId:pmActiveBranch||'main', batch:payload.batch||'OPENING', expiryDate:payload.expiryDate||'', quantityReceived:num(payload.stock), quantityRemaining:num(payload.stock), unitCost:num(payload.costPrice), supplierName:payload.supplierName||'', receivedDate:today(), source:'opening-stock' });
+          await add('stockMovements',{ productId:created.id, productName:payload.name, branchId:pmActiveBranch||'main', type:'OPENING', quantity:num(payload.stock), before:0, after:num(payload.stock), note:'Opening stock', date:today() });
+        }
       }
+      await writeAudit(id?'UPDATE':'CREATE','product',id||'new',{name:payload.name});
     }
 
     else if(type==='customer') {
@@ -636,7 +652,8 @@ async function handleRecordSubmit(event) {
     else if(type==='expense') {
       cleanNumberFields(payload,['amount']);
       if(payload.amount<=0) throw new Error('Enter an expense amount greater than zero.');
-      await saveSimpleRecord('expenses',id,payload);
+      await saveSimpleRecord('expenses',id,{...payload,branchId:pmActiveBranch||'main'});
+      if(!id) await pmPostJournal(`Expense: ${payload.category||payload.description||'Operating expense'}`,`EXP-${Date.now()}`,[{account:'OperatingExpenses',debit:num(payload.amount),credit:0},{account:pmPaymentAccount(payload.paymentMethod),debit:0,credit:num(payload.amount)}]);
     }
 
     else if(type==='purchase') {
@@ -654,6 +671,7 @@ async function handleRecordSubmit(event) {
         const total=payload.quantity*payload.unitCost;
         const purchaseData={
           ...payload,
+          branchId:pmActiveBranch||'main',
           supplierName:findSupplier(payload.supplierId)?.name || payload.supplierName || '',
           productName:product.name,
           total,
@@ -672,8 +690,17 @@ async function handleRecordSubmit(event) {
             expiryDate:payload.expiryDate||productSnap.data().expiryDate||'',
             updatedAt:serverTimestamp()
           });
+          const batchRef=doc(batchCol());
+          transaction.set(batchRef,{ productId:product.id, productName:product.name, branchId:pmActiveBranch||'main', batch:payload.batch||'UNSPECIFIED', expiryDate:payload.expiryDate||'', quantityReceived:payload.quantity, quantityRemaining:payload.quantity, unitCost:payload.unitCost, supplierId:payload.supplierId||'', supplierName:purchaseData.supplierName, receivedDate:payload.date||today(), purchaseId:'', createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
           const purchaseRef=doc(col('purchases'));
-          transaction.set(purchaseRef,{...purchaseData,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+          transaction.set(purchaseRef,{...purchaseData,batchId:batchRef.id,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+          const purchaseJournalRef=doc(pmCol('journal'));
+          const paidAmount=Math.min(Math.max(0,num(payload.paid)),total);
+          const purchaseLines=[{account:'Inventory',debit:total,credit:0}];
+          if(paidAmount) purchaseLines.push({account:pmPaymentAccount(payload.paymentMethod),debit:0,credit:paidAmount});
+          if(total-paidAmount) purchaseLines.push({account:'AccountsPayable',debit:0,credit:total-paidAmount});
+          transaction.set(purchaseJournalRef,{date:payload.date||today(),description:`Purchase ${purchaseData.invoiceNo||product.name}`,reference:purchaseData.invoiceNo||'',branchId:pmActiveBranch||'main',lines:purchaseLines,status:'Posted',createdBy:uid(),createdAt:serverTimestamp()});
+          await writeMovement(transaction,{ productId:product.id, productName:product.name, type:'PURCHASE_IN', quantity:payload.quantity, before:oldStock, after:oldStock+payload.quantity, batchId:batchRef.id, batch:payload.batch||'UNSPECIFIED', reference:payload.invoiceNo||'', date:payload.date||today() });
         });
       }
     }
@@ -691,6 +718,7 @@ async function handleRecordSubmit(event) {
       const customer=findCustomer(payload.customerId);
       const saleData={
         ...payload,
+        branchId:pmActiveBranch||'main',
         customerName:payload.customerName||customer?.name||'Walk-in customer',
         customerPhone:payload.customerPhone||customer?.phone||'',
         productName:product.name,
@@ -713,13 +741,39 @@ async function handleRecordSubmit(event) {
         if(!productSnap.exists()) throw new Error('Medicine no longer exists.');
         const currentStock=num(productSnap.data().stock);
         if(currentStock<payload.quantity) throw new Error(`Insufficient stock. Available: ${currentStock}.`);
-        transaction.update(productRef,{
-          stock:currentStock-payload.quantity,
-          updatedAt:serverTimestamp()
-        });
+        const batchQuery=query(batchCol(),where('productId','==',product.id),orderBy('expiryDate','asc'));
+        const batchSnap=await transaction.get(batchQuery);
+        let remaining=payload.quantity;
+        const allocations=[];
+        for (const batchDoc of batchSnap.docs) {
+          if (remaining<=0) break;
+          const b=batchDoc.data();
+          const expiry=safeDate(b.expiryDate);
+          if (expiry!=='9999-12-31' && expiry<today()) continue;
+          const available=num(b.quantityRemaining);
+          if (available<=0) continue;
+          const take=Math.min(available,remaining);
+          if(take>0){ allocations.push({ref:batchDoc.ref,id:batchDoc.id,take,batch:b}); remaining-=take; }
+        }
+        // Older records may only have aggregate stock and no batch documents.
+        const allocated=payload.quantity-remaining;
+        if(remaining>0 && batchSnap.empty && currentStock>=payload.quantity){
+          allocations.push({ref:null,id:'legacy-stock',take:payload.quantity,batch:{batch:product.batch||'LEGACY',expiryDate:product.expiryDate||'',unitCost:num(product.costPrice)}});
+          remaining=0;
+        }
+        if(remaining>0) throw new Error(`Usable batch stock is short by ${remaining}. Check batch records or expiry dates.`);
+        for(const a of allocations){ if(a.ref) transaction.update(a.ref,{quantityRemaining:num(a.batch.quantityRemaining)-a.take,updatedAt:serverTimestamp()}); }
+        transaction.update(productRef,{stock:currentStock-payload.quantity,updatedAt:serverTimestamp()});
         const saleRef=doc(col('sales'));
-        transaction.set(saleRef,{...saleData,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+        const finalItems=[{...saleData.items[0],allocations:allocations.map(a=>({batchId:a.id,batch:a.batch.batch||'',expiryDate:a.batch.expiryDate||'',quantity:a.take,unitCost:num(a.batch.unitCost||a.batch.costPrice||product.costPrice)}))}];
+        const actualCost=finalItems[0].allocations.reduce((n,a)=>n+a.quantity*num(a.unitCost),0);
+        transaction.set(saleRef,{...saleData,items:finalItems,costTotal:actualCost,profit:total-actualCost,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+        const saleJournalRef=doc(pmCol('journal'));
+        const saleLines=[];if(num(payload.paid))saleLines.push({account:pmPaymentAccount(payload.paymentMethod),debit:num(payload.paid),credit:0});if(total-num(payload.paid)>0)saleLines.push({account:'AccountsReceivable',debit:total-num(payload.paid),credit:0});saleLines.push({account:'SalesRevenue',debit:0,credit:total});if(actualCost){saleLines.push({account:'CostOfGoodsSold',debit:actualCost,credit:0});saleLines.push({account:'Inventory',debit:0,credit:actualCost});}
+        transaction.set(saleJournalRef,{date:saleData.date||today(),description:`POS sale ${saleData.invoiceNo}`,reference:saleData.invoiceNo,branchId:pmActiveBranch||'main',lines:saleLines,status:'Posted',createdBy:uid(),createdAt:serverTimestamp()});
+        await writeMovement(transaction,{productId:product.id,productName:product.name,type:'SALE_OUT',quantity:payload.quantity,before:currentStock,after:currentStock-payload.quantity,allocations:finalItems[0].allocations,reference:saleData.invoiceNo,date:saleData.date||today()});
       });
+      await writeAudit('CREATE','sale',payload.invoiceNo,{total,product:product.name,quantity:payload.quantity});
     }
 
     else if(type==='delivery') {
@@ -729,7 +783,27 @@ async function handleRecordSubmit(event) {
     else if(type==='return') {
       cleanNumberFields(payload,['quantity','amount']);
       if(payload.quantity<=0) throw new Error('Enter a valid return quantity.');
-      await saveSimpleRecord('returns',id,payload);
+      if(id) throw new Error('Saved return records are locked to prevent duplicate stock restoration. Create a new return correction record instead.');
+      const product=getProduct(payload.productId);
+      if(!product) throw new Error('Select a valid medicine for this return.');
+      const restockable=!['Damaged','Expired'].includes(payload.reason);
+      const approved=payload.status==='Approved' || payload.status==='Refunded';
+      await runTransaction(db,async transaction=>{
+        const productRef=docRef('products',product.id);
+        const productSnap=await transaction.get(productRef);
+        if(!productSnap.exists()) throw new Error('Medicine no longer exists.');
+        const current=num(productSnap.data().stock);
+        const returnRef=doc(col('returns'));
+        const returnData={...payload,branchId:pmActiveBranch||'main',productName:product.name,stockRestored:approved&&restockable,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
+        transaction.set(returnRef,returnData);
+        if(approved&&restockable){
+          transaction.update(productRef,{stock:current+payload.quantity,updatedAt:serverTimestamp()});
+          const batchRef=doc(batchCol());
+          transaction.set(batchRef,{productId:product.id,productName:product.name,branchId:pmActiveBranch||'main',batch:'RETURN-'+returnRef.id.slice(0,6),expiryDate:product.expiryDate||'',quantityReceived:payload.quantity,quantityRemaining:payload.quantity,unitCost:num(product.costPrice),receivedDate:payload.date||today(),source:'customer-return',returnId:returnRef.id,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+          await writeMovement(transaction,{productId:product.id,productName:product.name,type:'RETURN_IN',quantity:payload.quantity,before:current,after:current+payload.quantity,reference:payload.invoiceNo||returnRef.id,date:payload.date||today(),note:'Approved customer return'});
+        }
+      });
+      await writeAudit('CREATE','return','new',{product:product.name,quantity:payload.quantity,restocked:approved&&restockable});
     }
 
     dialogClose();
@@ -739,8 +813,8 @@ async function handleRecordSubmit(event) {
     console.error('Save error:',error);
     toast(error.message||'Could not save this record.',true);
   } finally {
-    $('recordSubmit').disabled=false;
-    $('recordSubmit').textContent='Save record';
+    $('dialogSave').disabled=false;
+    $('dialogSave').textContent='Save record';
   }
 }
 
@@ -864,14 +938,14 @@ function viewSale(id) {
       <div><b>Payment</b><span>${esc(s.paymentMethod||'—')}</span></div>
     </div>`,
     'Close');
-  $('recordSubmit').type='button';
-  $('recordSubmit').onclick=dialogClose;
+  $('dialogSave').type='button';
+  $('dialogSave').onclick=dialogClose;
 }
 
 function showDetail(title,lines) {
   dialogOpen(title,`<div class="detail-list">${lines.map(([label,value])=>`<div><b>${esc(label)}</b><span>${esc(value??'—')}</span></div>`).join('')}</div>`,'Close');
-  $('recordSubmit').type='button';
-  $('recordSubmit').onclick=dialogClose;
+  $('dialogSave').type='button';
+  $('dialogSave').onclick=dialogClose;
 }
 function viewPurchase(id) {
   const p=data.purchases.find(x=>x.id===id);
@@ -955,50 +1029,6 @@ function handleAction(action,buttonEl) {
   if(action==='export-purchases') return exportPurchases();
   if(action==='export-report') return exportReport();
 }
-function copilotAnswer(question) {
-  const q=question.toLowerCase();
-  const low=data.products.filter(p=>num(p.stock)<=num(p.reorderLevel));
-  const expired=data.products.filter(p=>p.expiryDate && new Date(`${p.expiryDate}T23:59:59`).getTime()<Date.now());
-  const soon=data.products.filter(p=>{
-    if(!p.expiryDate)return false;
-    const days=(new Date(`${p.expiryDate}T23:59:59`).getTime()-Date.now())/86400000;
-    return days>=0 && days<=30;
-  });
-  if(q.includes('stock')||q.includes('inventory')||q.includes('medicine')) {
-    return `Your workspace currently has ${data.products.length} medicine/product records.\nTotal recorded units: ${sum(data.products,'stock')}.\nLow-stock products: ${low.length}.\n\n${low.length?low.slice(0,10).map(p=>`• ${p.name}: ${p.stock} ${p.unit||'units'} remaining.`).join('\n'):'No low-stock products based on the saved reorder levels.'}`;
-  }
-  if(q.includes('expir')) {
-    return `Expiry overview:\nExpired products: ${expired.length}.\nExpiring within 30 days: ${soon.length}.\n\n${[...expired,...soon].slice(0,12).map(p=>`• ${p.name}: ${p.expiryDate}`).join('\n')||'No matching expiry dates are recorded.'}`;
-  }
-  if(q.includes('sale')||q.includes('revenue')||q.includes('profit')) {
-    return `Sales summary from saved invoices:\nInvoices: ${data.sales.length}.\nRecorded revenue: ${money(sum(data.sales,'total'))}.\nRecorded amount received: ${money(sum(data.sales,'paid'))}.\nEstimated item-level profit: ${money(sum(data.sales,'profit'))}.\nRecorded expenses: ${money(sum(data.expenses,'amount'))}.\n\nProfit figures are estimates based on saved sale costs. They are not audited accounts.`;
-  }
-  if(q.includes('purchase')||q.includes('supplier')) {
-    return `Purchase summary:\nPurchase records: ${data.purchases.length}.\nRecorded purchase value: ${money(data.purchases.reduce((n,p)=>n+num(p.total||p.amount),0))}.\nSuppliers: ${data.suppliers.length}.`;
-  }
-  if(q.includes('customer')||q.includes('receivable')||q.includes('khata')) {
-    const due=data.sales.reduce((n,s)=>n+Math.max(0,num(s.total)-num(s.paid)),0);
-    return `Customer summary:\nCustomer profiles: ${data.customers.length}.\nSales invoices: ${data.sales.length}.\nOutstanding invoice balances: ${money(due)}.\nThis total is calculated from invoice totals minus recorded payments.`;
-  }
-  return `Here is a quick overview of your saved business data:\n• Products: ${data.products.length}\n• Sales invoices: ${data.sales.length}\n• Purchases: ${data.purchases.length}\n• Customers: ${data.customers.length}\n• Suppliers: ${data.suppliers.length}\n• Expenses: ${money(sum(data.expenses,'amount'))}\n• Low-stock products: ${low.length}\n• Expired products: ${expired.length}\n\nTry asking about stock, sales, purchases, customers or expiry dates.`;
-}
-function handleCopilotSubmit(event) {
-  event.preventDefault();
-  const form=event.currentTarget;
-  const prompt=form.elements.prompt.value.trim();
-  if(!prompt||copilotBusy)return;
-  copilotMessages.push({role:'user',text:prompt});
-  copilotBusy=true;
-  renderCurrent();
-  setTimeout(()=>{
-    copilotMessages.push({role:'assistant',text:copilotAnswer(prompt)});
-    copilotBusy=false;
-    renderCurrent();
-    const conversation=$('copilotConversation');
-    if(conversation) conversation.scrollTop=conversation.scrollHeight;
-  },250);
-}
-
 async function loginWithEmail(event) {
   event.preventDefault();
   setAuthError('');
@@ -1106,17 +1136,10 @@ function handlePageClick(event) {
     renderCurrent();
     return;
   }
-  const promptButton=event.target.closest('[data-prompt]');
-  if(promptButton) {
-    copilotMessages.push({role:'user',text:promptButton.dataset.prompt});
-    copilotMessages.push({role:'assistant',text:copilotAnswer(promptButton.dataset.prompt)});
-    renderCurrent();
-    return;
-  }
-  if(event.target.closest('#mobileMenuBtn')) {
-    $('sidebar').classList.toggle('open');
-    $('scrim').classList.toggle('hidden');
-  }
+  if(event.target.closest('#menuBtn')) { $('sidebar').classList.toggle('open'); $('scrim').classList.toggle('hidden'); }
+  if(event.target.closest('#closeMenu')) { $('sidebar').classList.remove('open'); $('scrim').classList.add('hidden'); }
+  if(event.target.closest('#alertsBtn')) { inventoryFilter='all-alerts'; navigate('inventory'); }
+  if(event.target.closest('#logoutBtn')) logout();
   if(event.target.closest('#scrim')) {
     $('sidebar').classList.remove('open');
     $('scrim').classList.add('hidden');
@@ -1141,10 +1164,6 @@ function handleGeneralSubmit(event) {
   }
   if(event.target.id==='settingsForm') {
     saveSettings(event);
-    return;
-  }
-  if(event.target.id==='copilotForm') {
-    handleCopilotSubmit(event);
     return;
   }
 }
@@ -1174,13 +1193,23 @@ function initializeFirebase() {
     onAuthStateChanged(auth,async user=>{
       stopWatchers();
       currentUser=user||null;
+      tenantUid=null;
       if(!user) {
         showAuth();
         return;
       }
       try {
-        await ensureBusiness(user);
+        const tokenInfo=await user.getIdTokenResult();
+        tenantUid=tokenInfo.claims.ownerUid || user.uid;
+        pmAllowedBranches=tokenInfo.claims.ownerUid ? (Array.isArray(tokenInfo.claims.branchIds)?tokenInfo.claims.branchIds:['main']) : null;
+        if(pmAllowedBranches?.length && !pmAllowedBranches.includes(pmActiveBranch)) pmActiveBranch=pmAllowedBranches[0];
+        if(!tokenInfo.claims.ownerUid) await ensureBusiness(user);
         await loadBusiness();
+        const display=user.displayName || user.email?.split('@')[0] || 'User';
+        if($('userDisplayName')) $('userDisplayName').textContent=display;
+        if($('userEmail')) $('userEmail').textContent=user.email||'';
+        if($('userAvatar')) $('userAvatar').textContent=display.slice(0,1).toUpperCase();
+        if($('yearNow')) $('yearNow').textContent=new Date().getFullYear();
         showApp();
         startWatchers();
         navigate(activePage||'dashboard');
@@ -1225,3 +1254,145 @@ if($('recordForm')) {
 }
 if($('authForm')) authModeSet('login');
 initializeFirebase();
+
+
+/* ================= POULTRYMED ADVANCED ERP MODULES =================
+   Multi-item POS, branch-tagged inventory, staff invitations, double-entry
+   journal, and callable Cloud Functions. Existing users/{uid}/inventory path
+   remains the source for legacy product records. */
+let pmFunctions=null, pmCart=[], pmBranches=[], pmMembers=[], pmJournal=[], pmActiveBranch='main', pmAllowedBranches=null;
+let pmExtraUnsubs=[];
+const pmMember=()=>pmMembers.find(m=>m.uid===currentUser?.uid && m.active!==false);
+const pmIsOwner=()=>!!currentUser && currentUser.uid===uid();
+const pmCanManageBusiness=()=>pmIsOwner() || ['admin','manager'].includes(pmMember()?.role);
+const pmCanManageStaff=()=>pmIsOwner() || pmMember()?.role==='admin';
+const pmCanSell=()=>pmIsOwner() || ['admin','manager','cashier'].includes(pmMember()?.role);
+const pmBranchName=()=>pmBranches.find(b=>b.id===pmActiveBranch)?.name || (pmActiveBranch==='main'?'Main Branch':'Selected Branch');
+const pmRef=(name,id)=>doc(db,'users',uid(),name,id);
+const pmCol=name=>collection(db,'users',uid(),name);
+const pmBranchProducts=()=>data.products.filter(p=>(p.branchId||'main')===pmActiveBranch && (!pmAllowedBranches || pmAllowedBranches.includes(pmActiveBranch)));
+const pmJournalTotals=()=>{
+  const sums={}; pmJournal.forEach(j=>(j.lines||[]).forEach(l=>{sums[l.account]=(sums[l.account]||0)+num(l.debit)-num(l.credit)})); return sums;
+};
+function pmStartWatchers(){
+  pmExtraUnsubs.forEach(fn=>fn()); pmExtraUnsubs=[];
+  [['branches',v=>pmBranches=v],['members',v=>pmMembers=v],['journal',v=>pmJournal=v]].forEach(([name,setter])=>{
+    let ref=pmCol(name);if(name==='journal' && currentUser?.uid!==uid() && pmAllowedBranches?.length) ref=query(ref,where('branchId','in',pmAllowedBranches));
+    pmExtraUnsubs.push(onSnapshot(ref,snap=>{setter(snap.docs.map(d=>({id:d.id,...d.data()}))); if(['branches','team','accounting'].includes(activePage))renderCurrent();},err=>{console.error(name,err);toast(`Could not sync ${name}: ${err.message}`,true);}));
+  });
+}
+const pmOriginalStartWatchers=startWatchers;
+startWatchers=function(){pmOriginalStartWatchers();pmStartWatchers();};
+const pmOriginalStopWatchers=stopWatchers;
+stopWatchers=function(){pmOriginalStopWatchers();pmExtraUnsubs.forEach(fn=>fn());pmExtraUnsubs=[];};
+function pmAddNav(){
+  const nav=$('mainNav'); if(!nav||nav.querySelector('[data-page="pos"]'))return;
+  const entries=[['pos','▣','Multi-item POS'],['branches','⌂','Branches'],['team','♙','Staff & Permissions'],['accounting','▤','Accounting']];
+  entries.forEach(([page,icon,label])=>{const b=document.createElement('button');b.className='nav-link';b.dataset.page=page;b.innerHTML=`<span>${icon}</span>${label}`;nav.appendChild(b);});
+  pageNames.pos='Multi-item POS';pageNames.branches='Branch Management';pageNames.team='Staff & Permissions';pageNames.accounting='Full Accounting';
+}
+function pmBranchPicker(){const visible=[{id:'main',name:'Main Branch'},...pmBranches].filter(b=>b.active!==false && (!pmAllowedBranches||pmAllowedBranches.includes(b.id)));return `<label class="pm-branch-picker"><span>Active branch</span><select id="pmBranchSelect">${visible.map(b=>`<option value="${esc(b.id)}" ${b.id===pmActiveBranch?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label>`;}
+function pmRenderPOS(){
+ const products=pmBranchProducts().filter(p=>num(p.stock)>0);
+ const subtotal=pmCart.reduce((n,x)=>n+x.qty*x.price,0), discount=pmCart.reduce((n,x)=>n+x.discount,0), total=Math.max(0,subtotal-discount);
+ const cartRows=pmCart.map((x,i)=>`<tr><td><b>${esc(x.name)}</b><small class="muted-text">${esc(x.sku||'')}</small></td><td><input class="pm-qty" type="number" min="1" max="${x.available}" value="${x.qty}" data-cart-qty="${i}"></td><td><input class="pm-price" type="number" min="0" step="0.01" value="${x.price}" data-cart-price="${i}"></td><td>${money(x.qty*x.price)}</td><td><button class="mini-btn text-danger" data-cart-remove="${i}">Remove</button></td></tr>`).join('');
+ return `${pageHead('Multi-item POS','Build one invoice with multiple medicines, quantities, discounts and payment allocation.',pmBranchPicker())}<div class="pm-pos-grid"><section class="panel"><div class="panel-head"><div><h3>Add medicines</h3><p>${esc(pmBranchName())} · available stock only</p></div></div><div class="pm-product-grid">${products.map(p=>`<button class="pm-product-tile" data-cart-add="${p.id}"><b>${esc(p.name)}</b><small>${esc(p.sku||p.medicineType||'Medicine')}</small><span>${money(p.salePrice)} · ${num(p.stock)} ${esc(p.unit||'units')}</span></button>`).join('')||'<p class="empty-state">No available products in this branch. Add branch-specific stock first.</p>'}</div></section><section class="panel"><div class="panel-head"><div><h3>Current invoice</h3><p>${pmCart.length} line items</p></div><button class="btn btn-light" data-cart-clear>Clear cart</button></div>${pmCart.length?`<div class="table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead><tbody>${cartRows}</tbody></table></div>`:'<div class="empty-state">Add items from the product list to start an invoice.</div>'}<div class="pm-checkout"><label>Customer<select id="pmCustomer"><option value="">Walk-in customer</option>${data.customers.map(c=>`<option value="${c.id}">${esc(c.name)} · ${esc(c.phone||'')}</option>`).join('')}</select></label><label>Discount (PKR)<input id="pmDiscount" type="number" min="0" step="0.01" value="0"></label><label>Amount received<input id="pmPaid" type="number" min="0" step="0.01" value="${total}"></label><label>Payment method<select id="pmPayment"><option>Cash</option><option>Bank</option><option>JazzCash</option><option>Easypaisa</option><option>Credit</option></select></label><div class="pm-total-line"><span>Subtotal</span><b>${money(subtotal)}</b></div><div class="pm-total-line"><span>Discount</span><b id="pmDiscountView">${money(discount)}</b></div><div class="pm-total-line pm-grand"><span>Invoice total</span><b id="pmGrandTotal">${money(total)}</b></div><button class="btn btn-primary btn-block" data-pos-checkout ${(!pmCart.length||!pmCanSell())?'disabled':''}>Complete sale</button></div></section></div>`;
+}
+function pmRenderBranches(){
+ const rows=pmBranches.map(b=>tr([`<b>${esc(b.name)}</b>`,esc(b.code||'—'),esc(b.address||'—'),b.active===false?'<span class="pill red">Inactive</span>':'<span class="pill green">Active</span>',pmCanManageBusiness()?`<button class="mini-btn" data-branch-toggle="${b.id}">${b.active===false?'Activate':'Deactivate'}</button>`:'—']));
+ return `${pageHead('Branch management','Create branches and tag new stock and sales to the selected branch.',pmCanManageBusiness()?`<button class="btn btn-primary" data-branch-new>Add branch</button>`:'')}<div class="metric-grid">${metric('Branches',pmBranches.length+1,'Including Main Branch','⌂')}${metric('Current branch',esc(pmBranchName()),'Selected workspace','◈')}</div><section class="panel table-panel"><div class="panel-head"><div><h3>Business locations</h3><p>Main Branch contains your existing untagged records.</p></div></div>${table(['Branch','Code','Address','Status','Action'],rows,'Create additional branches when needed.')}</section><div class="notice warning">Existing records are kept in Main Branch. Run the one-time branch-tagging step as the owner before inviting staff, so legacy records receive a Main Branch tag without changing their business values. Branch stock is tracked by separate product records; automatic stock transfer is not included.</div>${pmIsOwner()?'<button class="btn btn-light" data-branch-migrate>Tag existing records as Main Branch</button>':''}`;
+}
+function pmRenderTeam(){
+ const canManage=pmCanManageStaff();
+ const rows=pmMembers.map(m=>tr([esc(m.email||m.uid),`<span class="pill">${esc(m.role||'staff')}</span>`,esc((m.branchIds||[]).map(id=>id==='main'?'Main Branch':(pmBranches.find(b=>b.id===id)?.name||id)).join(', ')||'All branches'),m.active===false?'<span class="pill red">Disabled</span>':'<span class="pill green">Active</span>',canManage?`<button class="mini-btn" data-staff-role="${m.uid}">Change role</button><button class="mini-btn text-danger" data-staff-remove="${m.uid}">Revoke</button>`:'—']));
+ return `${pageHead('Staff & permissions','Invite existing Firebase users and assign role-based workspace access.',canManage?`<button class="btn btn-primary" data-staff-invite>Invite staff</button>`:'')}<div class="notice">Owner account: full access. Admin: manage business records and staff. Manager: sales, purchases, inventory and reports. Cashier: POS and customer records. Viewer: read-only access.</div><section class="panel table-panel"><div class="panel-head"><div><h3>Workspace members</h3><p>Staff invitations require the Cloud Functions deployment and an existing Firebase Auth account.</p></div></div>${table(['Staff email','Role','Branch access','Status','Action'],rows,'No staff members invited yet.')}</section>`;
+}
+function pmRenderAccounting(){
+ const totals=pmJournalTotals(), assets=(totals.Cash||0)+(totals.Bank||0)+(totals.AccountsReceivable||0)+(totals.Inventory||0), liabilities=-(totals.AccountsPayable||0), equity=-(totals.Capital||0), revenue=-(totals.SalesRevenue||0), expenses=(totals.CostOfGoodsSold||0)+(totals.OperatingExpenses||0);
+ const rows=pmJournal.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,100).map(j=>tr([esc(j.date||'—'),esc(j.reference||'Journal'),esc(j.description||''),money((j.lines||[]).reduce((n,l)=>n+num(l.debit),0)),`<span class="pill">${esc(j.status||'Posted')}</span>`]));
+ return `${pageHead('Accounting & financial statements','Double-entry journal, account balances, trial balance and posted business transactions.',pmCanManageBusiness()?`<button class="btn btn-primary" data-journal-new>New journal entry</button>`:'')}<div class="metric-grid">${metric('Assets',money(assets),'Cash, bank, receivables & inventory','◈','blue')}${metric('Liabilities',money(liabilities),'Recorded payables','⇩','orange')}${metric('Revenue',money(revenue),'Posted sales revenue','↗','green')}${metric('Expenses',money(expenses),'COGS + operating expenses','▤','red')}</div><section class="panel"><div class="panel-head"><div><h3>Trial balance</h3><p>Debit-positive balances from posted journal entries.</p></div></div><div class="pm-account-grid">${['Cash','Bank','AccountsReceivable','Inventory','AccountsPayable','Capital','SalesRevenue','CostOfGoodsSold','OperatingExpenses'].map(a=>`<div class="pm-account"><small>${esc(a.replace(/([A-Z])/g,' $1'))}</small><b>${money(totals[a]||0)}</b></div>`).join('')}</div></section><section class="panel table-panel"><div class="panel-head"><div><h3>Journal entries</h3><p>Latest 100 posted entries</p></div><button class="btn btn-light" data-account-export>Export journal CSV</button></div>${table(['Date','Reference','Description','Debit total','Status'],rows,'No accounting entries yet.')}</section><div class="notice warning">Financial statements are based on journal entries created by this app after deployment. Historical records are not automatically converted into audited opening balances; opening balances must be entered through a balanced journal entry.</div>`;
+}
+const pmOriginalRenderCurrent=renderCurrent;
+renderCurrent=function(){
+ if(['pos','branches','team','accounting'].includes(activePage)){
+  if(!currentUser||!db)return;updateAlertChrome();pmAddNav();
+  $('pageContent').innerHTML=activePage==='pos'?pmRenderPOS():activePage==='branches'?pmRenderBranches():activePage==='team'?pmRenderTeam():pmRenderAccounting();$('syncStatus').textContent='Synced';return;
+ }
+ pmOriginalRenderCurrent();pmAddNav();
+};
+const pmOriginalNavigate=navigate;
+navigate=function(page){pmOriginalNavigate(page);pmAddNav();};
+function pmPaymentAccount(method){return ['Bank','JazzCash','Easypaisa'].includes(method)?method:'Cash';}
+function pmJournalLines(entries){return entries.filter(x=>num(x.debit)||num(x.credit));}
+async function pmPostJournal(description,reference,lines,branchId=pmActiveBranch){
+ const valid=pmJournalLines(lines);const debit=valid.reduce((n,x)=>n+num(x.debit),0),credit=valid.reduce((n,x)=>n+num(x.credit),0);
+ if(!valid.length||Math.abs(debit-credit)>0.005)throw new Error('Journal entry must have equal debit and credit totals.');
+ await addDoc(pmCol('journal'),{date:today(),description,reference,branchId,lines:valid,status:'Posted',createdBy:uid(),createdAt:serverTimestamp()});
+}
+async function pmCheckout(){
+ if(!pmCanSell())throw new Error('Your staff role does not have POS permission.');
+ if(!pmCart.length)throw new Error('Add at least one product to the cart.');
+ const customerId=$('pmCustomer')?.value||'',customer=findCustomer(customerId),discount=num($('pmDiscount')?.value),paid=num($('pmPaid')?.value),paymentMethod=$('pmPayment')?.value||'Cash';
+ const subtotal=pmCart.reduce((n,x)=>n+x.qty*x.price,0),total=subtotal-discount;
+ if(discount<0||discount>subtotal||paid<0||paid>total)throw new Error('Check discount and received amount.');
+ const cart=pmCart.map(x=>({...x}));const saleRef=doc(pmCol('sales'));const journalRef=doc(pmCol('journal'));
+ await runTransaction(db,async tx=>{
+  const refs=cart.map(x=>docRef('products',x.productId));const snaps=[];for(const ref of refs)snaps.push(await tx.get(ref));
+  const batchSnaps=[];for(const item of cart){const bq=query(batchCol(),where('productId','==',item.productId),orderBy('expiryDate','asc'));batchSnaps.push(await tx.get(bq));}
+  const updates=[];let costTotal=0;const allocationsByProduct=[];
+  snaps.forEach((snap,i)=>{
+   if(!snap.exists())throw new Error(`${cart[i].name} no longer exists.`);
+   const p=snap.data();if((p.branchId||'main')!==pmActiveBranch)throw new Error(`${cart[i].name} belongs to another branch.`);
+   const stock=num(p.stock);if(stock<cart[i].qty)throw new Error(`Insufficient stock for ${cart[i].name}. Available ${stock}.`);
+   const cost=num(p.costPrice);updates.push({ref:refs[i],stock:stock-cart[i].qty});
+   const docs=batchSnaps[i].docs.filter(d=>num(d.data().quantityRemaining)>0 && safeDate(d.data().expiryDate)>=today());
+   if(docs.length){let remaining=cart[i].qty;const allocations=[];for(const d of docs){if(!remaining)break;const available=num(d.data().quantityRemaining),take=Math.min(available,remaining);if(take>0){allocations.push({batchId:d.id,batch:d.data().batch||'',quantity:take,unitCost:num(d.data().unitCost)});remaining-=take;}}if(remaining>0)throw new Error(`Batch stock is short for ${cart[i].name}. Remaining unbatched stock is not used when valid batches exist.`);allocationsByProduct.push(allocations);}else{if(stock>0 && batchSnaps[i].empty) allocationsByProduct.push([{batchId:'LEGACY',batch:'Legacy stock',quantity:cart[i].qty,unitCost:cost}]);else if(batchSnaps[i].empty)allocationsByProduct.push([{batchId:'LEGACY',batch:'Legacy stock',quantity:cart[i].qty,unitCost:cost}]);else throw new Error(`No unexpired batch stock is available for ${cart[i].name}.`);}
+   costTotal+=allocationsByProduct[i].reduce((n,a)=>n+a.quantity*num(a.unitCost),0);
+  });
+  updates.forEach(u=>tx.update(u.ref,{stock:u.stock,updatedAt:serverTimestamp()}));
+  cart.forEach((item,i)=>{const docs=batchSnaps[i].docs;for(const allocation of allocationsByProduct[i]){if(allocation.batchId!=='LEGACY'){const snap=docs.find(d=>d.id===allocation.batchId);tx.update(snap.ref,{quantityRemaining:num(snap.data().quantityRemaining)-allocation.quantity,updatedAt:serverTimestamp()});}}});
+  const items=cart.map((x,i)=>({productId:x.productId,name:x.name,sku:x.sku||'',quantity:x.qty,unitPrice:x.price,costPrice:allocationsByProduct[i].reduce((n,a)=>n+a.quantity*num(a.unitCost),0)/x.qty,discount:0,allocations:allocationsByProduct[i]}));
+  const sale={invoiceNo:invoiceNo(),date:today(),branchId:pmActiveBranch,customerId,customerName:customer?.name||'Walk-in customer',customerPhone:customer?.phone||'',items,subtotal,discount,total,paid,paymentMethod,costTotal,profit:total-costTotal,status:paid>=total?'Paid':'Due',createdBy:uid(),createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
+  tx.set(saleRef,sale);
+  cart.forEach((item,i)=>{const prior=num(snaps[i].data().stock);writeMovement(tx,{productId:item.productId,productName:item.name,type:'SALE_OUT',quantity:item.qty,before:prior,after:prior-item.qty,allocations:allocationsByProduct[i],reference:sale.invoiceNo,date:today(),branchId:pmActiveBranch});});
+  const lines=[];if(paid)lines.push({account:pmPaymentAccount(paymentMethod),debit:paid,credit:0});if(total-paid)lines.push({account:'AccountsReceivable',debit:total-paid,credit:0});lines.push({account:'SalesRevenue',debit:0,credit:total});if(costTotal){lines.push({account:'CostOfGoodsSold',debit:costTotal,credit:0});lines.push({account:'Inventory',debit:0,credit:costTotal});}
+  const balanced=lines.reduce((n,l)=>n+l.debit,0)-lines.reduce((n,l)=>n+l.credit,0);if(Math.abs(balanced)>0.01)throw new Error('Accounting validation failed.');
+  tx.set(journalRef,{date:today(),description:`POS sale ${sale.invoiceNo}`,reference:sale.invoiceNo,branchId:pmActiveBranch,lines,status:'Posted',createdBy:uid(),createdAt:serverTimestamp()});
+ });
+ pmCart=[];toast('Multi-item sale completed. Open Sales & POS history to view or print the invoice.');renderCurrent();
+}
+function pmOpenBranchDialog(){
+ const name=prompt('Enter branch name:');if(!name?.trim())return;const code=prompt('Branch code (optional):')||'';const address=prompt('Branch address (optional):')||'';
+ addDoc(pmCol('branches'),{name:name.trim(),code,address,active:true,createdAt:serverTimestamp(),createdBy:uid()}).then(()=>toast('Branch created.')).catch(e=>toast(e.message,true));
+}
+async function pmInviteStaff(){
+ const email=prompt('Staff Firebase Auth email (the user must already have an account):');if(!email?.trim())return;const role=prompt('Role: admin, manager, cashier, viewer','cashier')||'cashier';if(!['admin','manager','cashier','viewer'].includes(role))return toast('Invalid role.',true);const available=[{id:'main',name:'Main Branch'},...pmBranches];const branchText=prompt(`Allowed branch names (comma separated):\n${available.map(b=>b.name).join(', ')}`,pmBranchName())||pmBranchName();const branchIds=branchText.split(',').map(v=>available.find(b=>b.name.toLowerCase()===v.trim().toLowerCase())?.id).filter(Boolean);if(!branchIds.length)return toast('No valid branch names selected.',true);
+ try{if(!pmFunctions)pmFunctions=getFunctions(undefined,'us-central1');const invite=httpsCallable(pmFunctions,'inviteStaff');await invite({email:email.trim(),role,branchIds});toast('Staff access granted. Ask the user to sign out and sign in again.');}catch(e){toast(e.message||'Staff invitation failed. Deploy Cloud Functions first.',true);}
+}
+async function pmRevokeStaff(targetUid){if(!confirm('Revoke this staff member access?'))return;try{if(!pmFunctions)pmFunctions=getFunctions(undefined,'us-central1');await httpsCallable(pmFunctions,'removeStaff')({targetUid});toast('Staff access revoked.');}catch(e){toast(e.message||'Could not revoke staff access.',true);}}
+function pmJournalDialog(){
+ const desc=prompt('Journal description:');if(!desc?.trim())return;const debitAccount=prompt('Debit account (e.g. Cash, Bank, Inventory, Capital):','Cash');const creditAccount=prompt('Credit account (e.g. Capital, AccountsPayable):','Capital');const amount=num(prompt('Amount (PKR):','0'));if(!debitAccount||!creditAccount||amount<=0)return toast('Enter valid journal details.',true);
+ pmPostJournal(desc.trim(),'MANUAL-'+Date.now(),[{account:debitAccount.trim(),debit:amount,credit:0},{account:creditAccount.trim(),debit:0,credit:amount}]).then(()=>toast('Journal entry posted.')).catch(e=>toast(e.message,true));
+}
+function pmExportJournal(){downloadCSV('poultrymed-journal.csv',['Date','Reference','Description','Account','Debit','Credit'],pmJournal.flatMap(j=>(j.lines||[]).map(l=>[j.date,j.reference,j.description,l.account,l.debit,l.credit])));}
+document.addEventListener('click',async e=>{
+ const add=e.target.closest('[data-cart-add]');if(add){const p=getProduct(add.dataset.cartAdd);if(!p)return;const found=pmCart.find(x=>x.productId===p.id);if(found){if(found.qty>=num(p.stock))return toast('No more stock available.',true);found.qty++;}else pmCart.push({productId:p.id,name:p.name,sku:p.sku,qty:1,available:num(p.stock),price:num(p.salePrice),costPrice:num(p.costPrice),discount:0});renderCurrent();return;}
+ const rm=e.target.closest('[data-cart-remove]');if(rm){pmCart.splice(Number(rm.dataset.cartRemove),1);renderCurrent();return;}
+ if(e.target.closest('[data-cart-clear]')){pmCart=[];renderCurrent();return;}
+ if(e.target.closest('[data-pos-checkout]')){try{await pmCheckout();}catch(err){toast(err.message||'Sale failed.',true);}return;}
+ if(e.target.closest('[data-branch-new]')){pmOpenBranchDialog();return;}
+ if(e.target.closest('[data-branch-migrate]')){try{if(!pmFunctions)pmFunctions=getFunctions(undefined,'us-central1');const result=await httpsCallable(pmFunctions,'initializeMainBranch')({});toast(`Main Branch tagging complete. Updated ${result.data.updated} records.`); }catch(err){toast(err.message||'Branch initialization failed.',true);}return;}
+ const toggle=e.target.closest('[data-branch-toggle]');if(toggle){const b=pmBranches.find(x=>x.id===toggle.dataset.branchToggle);if(b)updateDoc(pmRef('branches',b.id),{active:b.active===false,updatedAt:serverTimestamp()}).then(()=>toast('Branch status updated.')).catch(x=>toast(x.message,true));return;}
+ if(e.target.closest('[data-staff-invite]')){pmInviteStaff();return;}
+ const roleBtn=e.target.closest('[data-staff-role]');if(roleBtn){const role=prompt('New role: admin, manager, cashier, viewer','cashier');if(role&&['admin','manager','cashier','viewer'].includes(role)){const available=[{id:'main',name:'Main Branch'},...pmBranches];const branchText=prompt(`Allowed branch names (comma separated):\n${available.map(b=>b.name).join(', ')}`,pmBranchName())||pmBranchName();const branchIds=branchText.split(',').map(v=>available.find(b=>b.name.toLowerCase()===v.trim().toLowerCase())?.id).filter(Boolean);if(!branchIds.length)return toast('No valid branch names selected.',true);try{if(!pmFunctions)pmFunctions=getFunctions(undefined,'us-central1');await httpsCallable(pmFunctions,'updateStaffRole')({targetUid:roleBtn.dataset.staffRole,role,branchIds});toast('Staff role updated. Ask them to sign out and sign in again.');}catch(err){toast(err.message,true);}}return;}
+ const revoke=e.target.closest('[data-staff-remove]');if(revoke){pmRevokeStaff(revoke.dataset.staffRemove);return;}
+ if(e.target.closest('[data-journal-new]')){pmJournalDialog();return;}
+ if(e.target.closest('[data-account-export]')){pmExportJournal();return;}
+});
+document.addEventListener('change',e=>{
+ if(e.target.id==='pmBranchSelect'){if(pmAllowedBranches&&!pmAllowedBranches.includes(e.target.value)){toast('You do not have access to this branch.',true);renderCurrent();return;}pmActiveBranch=e.target.value;pmCart=[];renderCurrent();return;}
+ const q=e.target.closest('[data-cart-qty]');if(q){const i=Number(q.dataset.cartQty),x=pmCart[i];if(x){const v=Math.floor(num(q.value));if(v<1||v>x.available){toast(`Quantity must be between 1 and ${x.available}.`,true);renderCurrent();}else{x.qty=v;renderCurrent();}}return;}
+ const p=e.target.closest('[data-cart-price]');if(p){const i=Number(p.dataset.cartPrice),x=pmCart[i];if(x){const v=num(p.value);if(v<0){toast('Price cannot be negative.',true);renderCurrent();}else{x.price=v;renderCurrent();}}}
+});
+document.addEventListener('input',e=>{if(e.target.id==='pmDiscount'||e.target.id==='pmPaid'){const subtotal=pmCart.reduce((n,x)=>n+x.qty*x.price,0),discount=Math.min(subtotal,Math.max(0,num($('pmDiscount')?.value))),total=subtotal-discount;if($('pmDiscountView'))$('pmDiscountView').textContent=money(discount);if($('pmGrandTotal'))$('pmGrandTotal').textContent=money(total);}});
+setTimeout(pmAddNav,0);
