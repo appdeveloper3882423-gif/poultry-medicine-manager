@@ -1,32 +1,34 @@
-
 rules_version = '2';
-
 service cloud.firestore {
-  match /databases/{database}/documents {
-
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
-    }
-
-    // User profile
-    match /users/{userId} {
-      allow read, create, update: if isOwner(userId);
-      allow delete: if false;
-
-      // User's inventory, sales, purchases,
-      // customers, suppliers and other records
-      match /{collectionName}/{documentId} {
-        allow read, create, update, delete: if isOwner(userId);
-      }
-    }
-
-    // Block all other database paths
-    match /{document=**} {
-      allow read, write: if false;
-    }
+ match /databases/{database}/documents {
+  function signedIn(){return request.auth!=null;}
+  function isOwner(uid){return signedIn() && request.auth.uid==uid;}
+  function isMember(uid){return signedIn() && request.auth.token.ownerUid==uid && request.auth.token.active==true && exists(/databases/$(database)/documents/users/$(uid)/members/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(uid)/members/$(request.auth.uid)).data.active==true;}
+  function role(uid){return isOwner(uid)?'owner':(request.auth.token.role is string?request.auth.token.role:'viewer');}
+  function branchAllowed(uid, branchId){return isOwner(uid) || (isMember(uid) && (request.auth.token.branchIds is list) && (branchId in request.auth.token.branchIds));}
+  function canRead(uid){return isOwner(uid)||isMember(uid);}
+  function canReadRecord(uid){return canRead(uid) && (isOwner(uid) || (resource.data.branchId is string && branchAllowed(uid,resource.data.branchId)));}
+  function canCreateRecord(uid){return canRead(uid) && branchAllowed(uid, request.resource.data.branchId == null ? 'main' : request.resource.data.branchId);}
+  function canWriteBusiness(uid){return isOwner(uid)||(isMember(uid)&&role(uid) in ['admin','manager']);}
+  function canWriteSales(uid){return isOwner(uid)||(isMember(uid)&&role(uid) in ['admin','manager','cashier']);}
+  match /users/{uid} {
+   allow read: if canRead(uid);
+   allow create,update: if isOwner(uid);
+   allow delete: if false;
+   match /members/{memberId} { allow read: if canRead(uid); allow write: if false; }
+   match /branches/{branchId} { allow read: if canRead(uid); allow create,update: if canWriteBusiness(uid); allow delete: if false; }
+   match /journal/{entryId} { allow read: if canReadRecord(uid); allow create: if canWriteBusiness(uid) || (canWriteSales(uid) && request.resource.data.description.matches('^POS sale.*')); allow update: if canWriteBusiness(uid); allow delete: if false; }
+   match /auditLogs/{logId} { allow read: if canReadRecord(uid); allow create: if canWriteSales(uid) && canCreateRecord(uid); allow update,delete: if false; }
+   match /batches/{batchId} { allow read: if canReadRecord(uid); allow create: if canWriteBusiness(uid) && canCreateRecord(uid); allow update: if (canWriteBusiness(uid) && canCreateRecord(uid)) || (isMember(uid) && role(uid)=='cashier' && branchAllowed(uid,resource.data.branchId == null ? 'main' : resource.data.branchId) && request.resource.data.quantityRemaining < resource.data.quantityRemaining && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantityRemaining','updatedAt'])); allow delete: if isOwner(uid)||role(uid)=='admin'; }
+   match /stockMovements/{movementId} { allow read: if canReadRecord(uid); allow create: if canWriteSales(uid) && canCreateRecord(uid); allow update,delete: if false; }
+   match /inventory/{id} { allow read: if canReadRecord(uid); allow create: if canWriteBusiness(uid) && canCreateRecord(uid); allow update: if (canWriteBusiness(uid) && canCreateRecord(uid)) || (isMember(uid) && role(uid)=='cashier' && branchAllowed(uid,resource.data.branchId == null ? 'main' : resource.data.branchId) && request.resource.data.stock < resource.data.stock && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock','updatedAt'])); allow delete: if isOwner(uid)||role(uid)=='admin'; }
+   match /sales/{id} { allow read: if canReadRecord(uid); allow create: if canWriteSales(uid) && canCreateRecord(uid); allow update: if canWriteBusiness(uid) && canCreateRecord(uid); allow delete: if isOwner(uid)||role(uid)=='admin'; }
+   match /{collectionName}/{id} {
+    allow read: if canReadRecord(uid);
+    allow create,update: if collectionName == 'customers' ? (canWriteSales(uid) && canCreateRecord(uid)) : (collectionName in ['purchases','expenses','returns','deliveries','suppliers','ledger'] && canWriteBusiness(uid) && canCreateRecord(uid));
+    allow delete: if isOwner(uid)||role(uid)=='admin';
+   }
   }
+  match /{document=**} { allow read,write: if false; }
+ }
 }
