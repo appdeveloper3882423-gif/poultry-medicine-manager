@@ -1240,6 +1240,14 @@ if($('recordDialog')) {
   $('recordDialog').addEventListener('click',event=>{
     if(event.target===$('recordDialog')) dialogClose();
   });
+  // Explicitly wire both visible dialog dismissal controls.
+  ['dialogClose','dialogCancel'].forEach(id=>{
+    const button=$(id);
+    if(button) button.addEventListener('click',event=>{
+      event.preventDefault();
+      dialogClose();
+    });
+  });
   $('recordDialog').addEventListener('close',()=>{
     $('recordForm').onsubmit=null;
   });
