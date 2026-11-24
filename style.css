@@ -2432,3 +2432,30 @@ tbody tr:hover td { background: rgba(22,140,255,.085) !important; }
     transition-duration: .01ms !important;
   }
 }
+
+/* Neon Blue Cyber — live global medicine search */
+.global-search-wrap{position:relative;width:min(280px,25vw);z-index:80;flex:0 1 280px}
+.global-search-wrap .search-box{width:100%;min-width:0;border-color:rgba(37,145,255,.32);background:linear-gradient(145deg,#0a1b33,#0c2342);color:#8edfff;box-shadow:inset 0 0 16px rgba(0,132,255,.07);transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease}
+.global-search-wrap .search-box:focus-within{border-color:#20cfff;box-shadow:0 0 0 3px rgba(32,207,255,.12),0 0 22px rgba(0,132,255,.2),inset 0 0 16px rgba(0,132,255,.09);transform:translateY(-1px)}
+.global-search-wrap .search-box input{color:#eaf8ff;font-size:12px}
+.global-search-wrap .search-box input::placeholder{color:#82a8c9}
+.global-search-results{position:absolute;top:calc(100% + 10px);right:0;width:min(390px,88vw);max-height:min(520px,70vh);overflow:auto;padding:8px;border:1px solid rgba(32,190,255,.42);border-radius:15px;background:linear-gradient(155deg,rgba(7,21,42,.98),rgba(8,34,64,.98));box-shadow:0 18px 48px rgba(0,0,0,.48),0 0 28px rgba(0,132,255,.18),inset 0 1px rgba(255,255,255,.04);backdrop-filter:blur(18px);animation:globalSearchDrop .2s cubic-bezier(.2,.8,.2,1);transform-origin:top right}
+.global-search-results.hidden{display:none}
+@keyframes globalSearchDrop{from{opacity:0;transform:translateY(-7px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+.global-search-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 10px;color:#e6f7ff;font-size:11px;font-weight:800;letter-spacing:.02em}
+.global-search-heading span{color:#71b9e8;font-size:9px;font-weight:600}
+.global-search-result{display:flex;align-items:center;gap:10px;width:100%;padding:10px;border:1px solid transparent;border-radius:10px;background:transparent;color:#eaf7ff;text-align:left;cursor:pointer;transition:background .18s ease,border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.global-search-result+.global-search-result{margin-top:3px}
+.global-search-result:hover,.global-search-result:focus-visible{outline:none;background:linear-gradient(90deg,rgba(0,126,255,.22),rgba(32,207,255,.08));border-color:rgba(32,207,255,.4);transform:translateX(2px);box-shadow:0 0 16px rgba(0,132,255,.12)}
+.global-search-result-icon{display:grid;place-items:center;flex:0 0 34px;height:34px;border-radius:10px;background:linear-gradient(145deg,rgba(0,119,255,.28),rgba(32,207,255,.13));border:1px solid rgba(32,207,255,.28);color:#51d8ff;font-size:17px}
+.global-search-result-main{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.global-search-result-main b{overflow:hidden;color:#f0f9ff;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.global-search-result-main small,.global-search-stock small{color:#82a9c8;font-size:9px}
+.global-search-stock{display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:#74ddff;font-size:11px;font-weight:800;white-space:nowrap}
+.global-search-arrow{color:#4fcfff;font-size:16px;opacity:.65;transition:transform .18s ease,opacity .18s ease}
+.global-search-result:hover .global-search-arrow{opacity:1;transform:translate(2px,-2px)}
+.global-search-empty,.global-search-more{padding:13px 11px;color:#9bbbd5;font-size:11px}
+.global-search-more{border-top:1px solid rgba(89,161,210,.16);font-size:10px}
+@media(max-width:760px){.global-search-wrap{width:210px;flex-basis:210px}.global-search-results{right:-40px;width:min(360px,90vw)}}
+@media(max-width:560px){.topbar-right .global-search-wrap{width:38px;min-width:38px;flex:0 0 38px}.global-search-wrap .search-box{width:38px;min-width:38px;height:38px;padding:0;justify-content:center;border:1px solid rgba(32,190,255,.3);background:#0a1b33}.global-search-wrap .search-box input{display:none}.global-search-wrap:focus-within{position:absolute;right:12px;top:12px;width:min(320px,calc(100vw - 24px));z-index:100}.global-search-wrap:focus-within .search-box{width:100%;min-width:0;padding:0 11px;justify-content:flex-start}.global-search-wrap:focus-within .search-box input{display:block}.global-search-results{right:0;width:100%;max-height:65vh}}
+@media(prefers-reduced-motion:reduce){.global-search-results,.global-search-result,.global-search-wrap .search-box{animation:none!important;transition:none!important}}

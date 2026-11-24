@@ -54,3 +54,9 @@ browser end-to-end test have not been performed as part of this update.
 
 NEON BLUE EDITION
 This edition uses a unified dark navy + electric neon blue visual theme, animated gradient primary buttons, light-sweep hover effects, glowing navigation, animated dashboard cards/panels, and reduced-motion accessibility. Firebase project configuration and Firestore paths remain unchanged.
+
+GLOBAL MEDICINE SEARCH UPDATE
+- The top-bar Global Search now searches saved medicines from the inventory.
+- Matching medicines appear in a selectable dropdown while typing; results are sorted with name-prefix matches first, then alphabetically.
+- Selecting a medicine opens the Medicine Stock page and filters the catalogue to that medicine.
+- The search supports mouse/touch selection and Enter/Escape keyboard actions.

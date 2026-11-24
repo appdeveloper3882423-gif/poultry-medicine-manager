@@ -1107,7 +1107,55 @@ async function logout() {
   }
 }
 
+function hideGlobalSearchResults() {
+  const panel=$('globalSearchResults'), input=$('globalSearch');
+  if(panel) panel.classList.add('hidden');
+  if(input) input.setAttribute('aria-expanded','false');
+}
+function renderGlobalSearchResults(rawQuery='') {
+  const panel=$('globalSearchResults'), input=$('globalSearch');
+  if(!panel || !input) return;
+  const q=String(rawQuery||'').trim().toLowerCase();
+  const products=[...data.products].filter(p=>{
+    const name=String(p.name||'').toLowerCase();
+    const sku=String(p.sku||'').toLowerCase();
+    return !q || name.startsWith(q) || name.includes(q) || sku.startsWith(q) || sku.includes(q);
+  }).sort((a,b)=>{
+    if(q){
+      const aStarts=String(a.name||'').toLowerCase().startsWith(q)?0:1;
+      const bStarts=String(b.name||'').toLowerCase().startsWith(q)?0:1;
+      if(aStarts!==bStarts) return aStarts-bStarts;
+    }
+    return String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'});
+  });
+  const matches=products.slice(0,30);
+  if(!matches.length){
+    panel.innerHTML=`<div class="global-search-empty">No medicines found${q?` for “${esc(rawQuery)}”`:''}.</div>`;
+  } else {
+    panel.innerHTML=`<div class="global-search-heading">${q?`${products.length} medicine${products.length===1?'':'s'} found`:'Medicines in your stock'} <span>Click to open stock</span></div>`+matches.map(p=>`<button type="button" class="global-search-result" role="option" data-global-product="${esc(p.id)}"><span class="global-search-result-icon">▤</span><span class="global-search-result-main"><b>${esc(p.name||'Unnamed medicine')}</b><small>${esc(p.sku||p.medicineType||'Medicine')}</small></span><span class="global-search-stock">${num(p.stock)} ${esc(p.unit||'units')}<small>Stock</small></span><span class="global-search-arrow">↗</span></button>`).join('')+(products.length>30?`<div class="global-search-more">Showing first 30 of ${products.length} matches. Type more to narrow results.</div>`:'');
+  }
+  panel.classList.remove('hidden');
+  input.setAttribute('aria-expanded','true');
+}
+function openGlobalSearchProduct(productId) {
+  const product=getProduct(productId);
+  if(!product) { toast('This medicine is no longer available.',true); hideGlobalSearchResults(); return; }
+  inventoryFilter='all';
+  searchText=product.name||'';
+  const input=$('globalSearch');
+  if(input) input.value=product.name||'';
+  hideGlobalSearchResults();
+  navigate('inventory');
+}
+
 function handlePageClick(event) {
+  const globalResult=event.target.closest('[data-global-product]');
+  if(globalResult) { openGlobalSearchProduct(globalResult.dataset.globalProduct); return; }
+  if(!event.target.closest('.global-search-wrap')) hideGlobalSearchResults();
+  if(event.target.closest('#globalSearch')) {
+    const input=$('globalSearch');
+    renderGlobalSearchResults(input?.value||'');
+  }
   const pageButton=event.target.closest('[data-page]');
   if(pageButton) {
     navigate(pageButton.dataset.page);
@@ -1146,12 +1194,15 @@ function handlePageClick(event) {
   }
 }
 function handleSearchInput(event) {
-  if(!event.target.matches('[data-search],#globalSearch'))return;
+  if(event.target.matches('#globalSearch')) {
+    renderGlobalSearchResults(event.target.value);
+    return;
+  }
+  if(!event.target.matches('[data-search]'))return;
   searchText=event.target.value;
   const selectionStart=event.target.selectionStart;
-  const id=event.target.id;
   renderCurrent();
-  const next=id?$(id):document.querySelector('[data-search]');
+  const next=document.querySelector('[data-search]');
   if(next) {
     next.focus();
     try { next.setSelectionRange(selectionStart,selectionStart); } catch {}
@@ -1226,6 +1277,13 @@ function initializeFirebase() {
 
 document.addEventListener('click',handlePageClick);
 document.addEventListener('input',handleSearchInput);
+document.addEventListener('keydown',event=>{
+  if(event.target.id==='globalSearch' && event.key==='Escape') { hideGlobalSearchResults(); event.target.blur(); }
+  if(event.target.id==='globalSearch' && event.key==='Enter') {
+    const first=$('globalSearchResults')?.querySelector('[data-global-product]');
+    if(first) { event.preventDefault(); openGlobalSearchProduct(first.dataset.globalProduct); }
+  }
+});
 document.addEventListener('submit',handleGeneralSubmit);
 document.addEventListener('change',handleProductSelect);
 

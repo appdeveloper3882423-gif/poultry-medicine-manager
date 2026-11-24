@@ -200,10 +200,13 @@
         </div>
 
         <div class="topbar-right">
-          <label class="search-box">
-            <span>⌕</span>
-            <input id="globalSearch" placeholder="Search current records…" />
-          </label>
+          <div class="global-search-wrap">
+            <label class="search-box" for="globalSearch">
+              <span>⌕</span>
+              <input id="globalSearch" type="search" autocomplete="off" placeholder="Search medicines…" aria-label="Search medicines" aria-controls="globalSearchResults" aria-expanded="false" />
+            </label>
+            <div id="globalSearchResults" class="global-search-results hidden" role="listbox" aria-label="Medicine search results"></div>
+          </div>
 
           <button id="alertsBtn" class="icon-btn alert-button"
             title="View stock and expiry alerts">
