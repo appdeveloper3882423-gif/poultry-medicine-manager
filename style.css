@@ -1910,3 +1910,86 @@ tbody tr:hover td { background: #fbfdfd; }
     transition-duration: .01ms !important;
   }
 }
+
+/* PoultryMed interaction and motion layer */
+:root { --motion-fast: 160ms; --motion-normal: 240ms; }
+button, .nav-link, .metric-card, .panel, .auth-card, .record-dialog {
+  transition: transform var(--motion-normal) ease, box-shadow var(--motion-normal) ease,
+    background-color var(--motion-normal) ease, border-color var(--motion-normal) ease,
+    opacity var(--motion-normal) ease;
+}
+button:not(:disabled):active { transform: translateY(1px) scale(.985); }
+.btn-primary { position: relative; overflow: hidden; }
+.btn-primary:after {
+  content: ''; position: absolute; inset: 0 auto 0 -130%; width: 65%;
+  background: linear-gradient(100deg,transparent,#ffffff38,transparent);
+  transform: skewX(-18deg); transition: left 520ms ease;
+}
+.btn-primary:hover:after { left: 150%; }
+.nav-link:hover { transform: translateX(3px); }
+.metric-card:hover, .panel:hover { box-shadow: 0 16px 38px rgba(17,35,63,.10); }
+.auth-card { animation: pmFadeUp 520ms cubic-bezier(.2,.8,.2,1) both; }
+.brand-logo { animation: pmLogoIn 700ms cubic-bezier(.2,.8,.2,1) both; }
+.page-content { animation: pmFadeUp 280ms ease both; }
+.record-dialog[open] { animation: pmDialogIn 220ms ease both; }
+.toast.show { animation: pmToastIn 240ms ease both; }
+@keyframes pmFadeUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+@keyframes pmLogoIn { from { opacity:0; transform:rotate(-12deg) scale(.8) } to { opacity:1; transform:rotate(0) scale(1) } }
+@keyframes pmDialogIn { from { opacity:0; transform:translateY(10px) scale(.985) } to { opacity:1; transform:translateY(0) scale(1) } }
+@keyframes pmToastIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+@media (prefers-reduced-motion: reduce) {
+  *, *:before, *:after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
+
+/* Advanced ERP module styles */
+.pm-pos-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,.9fr);gap:18px;align-items:start}.pm-product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:16px}.pm-product-tile{display:flex;flex-direction:column;gap:7px;text-align:left;padding:14px;border:1px solid var(--line,#263751);border-radius:14px;background:rgba(255,255,255,.035);color:inherit;cursor:pointer;transition:.2s}.pm-product-tile:hover{transform:translateY(-3px);border-color:#3d9dff;background:rgba(61,157,255,.08)}.pm-product-tile small,.pm-product-tile span{color:var(--muted,#93a3bb);font-size:12px}.pm-checkout{padding:16px;display:grid;gap:12px}.pm-checkout label,.pm-branch-picker{display:grid;gap:6px;font-size:13px;color:var(--muted,#93a3bb)}.pm-checkout input,.pm-checkout select,.pm-branch-picker select,.pm-qty,.pm-price{min-width:0;width:100%;padding:10px;border:1px solid var(--line,#263751);border-radius:9px;background:rgba(255,255,255,.045);color:inherit}.pm-checkout select option,.pm-branch-picker option{color:#17243a}.pm-total-line{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line,#263751)}.pm-grand{font-size:18px;border:0}.pm-branch-picker{min-width:180px}.pm-branch-picker select{margin-top:5px}.pm-account-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:16px}.pm-account{padding:14px;border-radius:12px;background:rgba(255,255,255,.04);display:grid;gap:8px}.pm-account small{color:var(--muted,#93a3bb);text-transform:capitalize}.pm-account b{font-size:18px}.pm-qty,.pm-price{max-width:90px;padding:7px}.pm-pos-grid .table-wrap{max-width:100%;overflow:auto}.pm-pos-grid table{min-width:470px}@media(max-width:900px){.pm-pos-grid{grid-template-columns:1fr}}@media(max-width:520px){.pm-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pm-branch-picker{min-width:140px}}
+
+/* Professional visual refinement */
+:root {
+  --pm-ease: cubic-bezier(.2,.75,.25,1);
+  --pm-glow: 0 14px 34px rgba(16,28,53,.11);
+}
+html { scroll-behavior: smooth; }
+body { text-rendering: optimizeLegibility; }
+.page-content { animation: pmPageEnter .38s var(--pm-ease) both; }
+.panel, .metric-card, .workspace-card, .user-chip {
+  transition: transform .24s var(--pm-ease), box-shadow .24s var(--pm-ease), border-color .24s ease;
+}
+.metric-card { animation: pmCardEnter .45s var(--pm-ease) both; }
+.metric-grid .metric-card:nth-child(2) { animation-delay: 45ms; }
+.metric-grid .metric-card:nth-child(3) { animation-delay: 90ms; }
+.metric-grid .metric-card:nth-child(4) { animation-delay: 135ms; }
+.metric-grid .metric-card:nth-child(5) { animation-delay: 180ms; }
+.metric-grid .metric-card:nth-child(6) { animation-delay: 225ms; }
+.panel { animation: pmPanelEnter .42s var(--pm-ease) both; }
+.panel:hover { box-shadow: var(--pm-glow); }
+.metric-card:hover { transform: translateY(-4px); }
+input, select, textarea {
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--teal, #1eae91) !important;
+  box-shadow: 0 0 0 3px rgba(30,174,145,.13);
+}
+button:focus-visible, a:focus-visible {
+  outline: 3px solid rgba(30,174,145,.45);
+  outline-offset: 2px;
+}
+.nav-link { transition: transform .2s var(--pm-ease), background .2s ease, color .2s ease; }
+.nav-link.active { box-shadow: inset 3px 0 0 var(--teal, #1eae91); }
+.table-wrap tbody tr { transition: background-color .18s ease; }
+.table-wrap tbody tr:hover { background: rgba(30,174,145,.045); }
+.btn { transition: transform .2s var(--pm-ease), box-shadow .2s ease, filter .2s ease; }
+.btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16,28,53,.13); }
+.btn:active:not(:disabled) { transform: translateY(0) scale(.985); }
+.sidebar { transition: transform .28s var(--pm-ease); }
+.topbar { backdrop-filter: blur(14px); }
+.app-footer { opacity: .78; }
+@keyframes pmPageEnter { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+@keyframes pmCardEnter { from { opacity:0; transform:translateY(13px) scale(.99) } to { opacity:1; transform:translateY(0) scale(1) } }
+@keyframes pmPanelEnter { from { opacity:0; transform:translateY(9px) } to { opacity:1; transform:translateY(0) } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
